@@ -1,0 +1,921 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prisma AIRS · Model Scanning Deployment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0b0d10;
+    --bg-soft:   #11141a;
+    --surface:   #161a21;
+    --surface-2: #1c2129;
+    --border:    #262b34;
+    --border-strong: #3a414c;
+    --text:      #ece9e3;
+    --text-dim:  #8a8f99;
+    --text-faint:#54595f;
+    --accent:    #ff6a1a;
+    --accent-dim:#3a1a0a;
+    --ok:        #2ecc71;
+    --warn:      #f5b942;
+    --bad:       #ff3b30;
+
+    --f-display: 'Instrument Serif', Georgia, serif;
+    --f-body:    'IBM Plex Sans', system-ui, sans-serif;
+    --f-mono:    'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: var(--f-body); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-feature-settings: "ss01", "ss02"; }
+  body { overflow: hidden; }
+
+  /* ─── Deck container ──────────────────────────────────────────── */
+  .deck { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+  .slide {
+    position: absolute; inset: 0;
+    padding: 7vh 7vw 9vh;
+    display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none;
+    transition: opacity 320ms ease;
+    background: var(--bg);
+  }
+  .slide.active { opacity: 1; pointer-events: auto; }
+  .slide.active .reveal { animation: rise 520ms cubic-bezier(.2,.7,.2,1) backwards; }
+  .reveal:nth-child(1) { animation-delay: 80ms; }
+  .reveal:nth-child(2) { animation-delay: 180ms; }
+  .reveal:nth-child(3) { animation-delay: 280ms; }
+  .reveal:nth-child(4) { animation-delay: 380ms; }
+  .reveal:nth-child(5) { animation-delay: 480ms; }
+  .reveal:nth-child(6) { animation-delay: 580ms; }
+  .reveal:nth-child(7) { animation-delay: 680ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* ─── Chrome (top + bottom bars) ──────────────────────────────── */
+  .chrome-top, .chrome-bot {
+    position: fixed; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1.6vh 2.2vw;
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.14em;
+    color: var(--text-faint); text-transform: uppercase;
+    z-index: 50; pointer-events: none;
+  }
+  .chrome-top { top: 0; }
+  .chrome-bot { bottom: 0; }
+  .chrome-top .mark { color: var(--text-dim); }
+  .chrome-top .mark .dot { color: var(--accent); }
+  .chrome-bot .counter { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+  .chrome-bot .hint { color: var(--text-faint); }
+  .chrome-bot .hint kbd {
+    font-family: var(--f-mono); font-size: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 3px; color: var(--text-dim);
+    margin: 0 2px;
+  }
+  .progress {
+    position: fixed; top: 0; left: 0; height: 2px;
+    background: var(--accent); z-index: 60;
+    transition: width 300ms ease;
+  }
+
+  /* ─── Section eyebrow ─────────────────────────────────────────── */
+  .eyebrow {
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--accent);
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 2.4vh;
+  }
+  .eyebrow::before {
+    content: ""; width: 28px; height: 1px; background: var(--accent);
+  }
+  .eyebrow .num { color: var(--text-dim); font-weight: 400; }
+
+  /* ─── Headlines ───────────────────────────────────────────────── */
+  h1.display {
+    font-family: var(--f-display); font-weight: 400;
+    font-size: clamp(3rem, 7vw, 6.4rem); line-height: 0.96;
+    letter-spacing: -0.02em; color: var(--text);
+  }
+  h1.display em { font-style: italic; color: var(--accent); font-weight: 400; }
+  h2.headline {
+    font-family: var(--f-display); font-weight: 400;
+    font-size: clamp(2.2rem, 4.6vw, 4.2rem); line-height: 1.02;
+    letter-spacing: -0.015em; color: var(--text); max-width: 22ch;
+  }
+  h2.headline em { font-style: italic; color: var(--accent); }
+  .lede {
+    font-family: var(--f-body); font-weight: 300;
+    font-size: clamp(1rem, 1.3vw, 1.2rem); line-height: 1.55;
+    color: var(--text-dim); max-width: 60ch;
+    margin-top: 2.2vh;
+  }
+
+  /* ─── Body layout helpers ─────────────────────────────────────── */
+  .content { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 1500px; margin: 0 auto; width: 100%; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4vw; align-items: start; margin-top: 4vh; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6vw; margin-top: 4vh; }
+  .grid-thirds { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 5vw; align-items: center; }
+
+  /* ─── Lists ───────────────────────────────────────────────────── */
+  ul.minimal { list-style: none; }
+  ul.minimal li {
+    font-size: 1.05rem; line-height: 1.5;
+    color: var(--text); padding: 1.4vh 0;
+    border-bottom: 1px solid var(--border);
+    display: flex; gap: 18px; align-items: baseline;
+  }
+  ul.minimal li:last-child { border-bottom: none; }
+  ul.minimal li .k {
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.12em;
+    color: var(--accent); min-width: 78px; text-transform: uppercase;
+    font-weight: 500;
+  }
+  ul.minimal li .v { color: var(--text-dim); }
+  ul.minimal li .t { color: var(--text); font-weight: 500; }
+
+  /* ─── Cards ───────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 28px 24px; border-radius: 2px;
+    position: relative; overflow: hidden;
+  }
+  .card .card-num {
+    position: absolute; top: 14px; right: 16px;
+    font-family: var(--f-mono); font-size: 10px;
+    color: var(--text-faint); letter-spacing: 0.1em;
+  }
+  .card h3 {
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--accent); font-weight: 500;
+    margin-bottom: 18px;
+  }
+  .card .val {
+    font-family: var(--f-mono); font-size: 0.78rem; color: var(--text);
+    background: var(--bg); padding: 8px 10px; border: 1px solid var(--border);
+    word-break: break-all; line-height: 1.4; margin-bottom: 14px;
+  }
+  .card .src { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
+  .card .src strong { color: var(--text); font-weight: 500; }
+
+  /* ─── Code blocks ─────────────────────────────────────────────── */
+  pre.code {
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+    padding: 22px 26px; font-family: var(--f-mono);
+    font-size: clamp(0.78rem, 0.92vw, 0.92rem); line-height: 1.6;
+    color: var(--text); overflow: auto;
+    border-radius: 2px;
+  }
+  pre.code .c { color: var(--text-faint); }
+  pre.code .k { color: var(--accent); }
+  pre.code .s { color: #d4cda3; }
+  pre.code .n { color: var(--text); }
+  pre.code .p { color: var(--text-dim); }
+
+  /* ─── Terminal block ──────────────────────────────────────────── */
+  .term {
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 2px; font-family: var(--f-mono);
+    font-size: 0.86rem; line-height: 1.8;
+    padding: 22px 24px;
+  }
+  .term .ln { display: flex; gap: 14px; }
+  .term .pr { color: var(--accent); user-select: none; }
+  .term .cm { color: var(--text); }
+  .term .cc { color: var(--text-faint); margin-left: auto; padding-left: 24px; }
+
+  /* ─── Pills ───────────────────────────────────────────────────── */
+  .pills { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 2.4vh; }
+  .pill {
+    font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.08em;
+    padding: 7px 14px; border: 1px solid var(--border-strong);
+    color: var(--text); border-radius: 999px; text-transform: uppercase;
+  }
+  .pill.hot { color: var(--accent); border-color: var(--accent); }
+
+  /* ─── Flow diagram (slide 5) ──────────────────────────────────── */
+  .flow {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4vw;
+    align-items: center; margin-top: 3vh;
+  }
+  .flow-stack { display: flex; flex-direction: column; gap: 18px; }
+  .flow-node {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 16px 20px; position: relative;
+    font-family: var(--f-mono); font-size: 0.82rem;
+  }
+  .flow-node .step {
+    position: absolute; top: -10px; left: -10px;
+    background: var(--accent); color: var(--bg);
+    width: 24px; height: 24px; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; border-radius: 50%;
+  }
+  .flow-node .title { color: var(--accent); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 8px; }
+  .flow-node .body { color: var(--text); font-size: 0.82rem; line-height: 1.5; word-break: break-all; }
+  .flow-arrow {
+    text-align: center; color: var(--text-faint); font-family: var(--f-mono);
+    font-size: 18px; line-height: 1;
+  }
+  .flow-aside { color: var(--text-dim); font-size: 0.95rem; line-height: 1.6; }
+  .flow-aside p { margin-bottom: 1.2em; }
+  .flow-aside strong { color: var(--text); font-weight: 500; }
+
+  /* ─── Threat table ────────────────────────────────────────────── */
+  table.threats {
+    width: 100%; border-collapse: collapse; margin-top: 3vh;
+    font-size: 0.95rem;
+  }
+  table.threats th {
+    text-align: left; padding: 14px 16px;
+    font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--text-faint); font-weight: 500;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  table.threats td {
+    padding: 16px; border-bottom: 1px solid var(--border);
+    color: var(--text-dim); line-height: 1.45;
+    vertical-align: top;
+  }
+  table.threats td:first-child { color: var(--text); font-weight: 500; width: 26%; }
+  table.threats .sev {
+    display: inline-block; font-family: var(--f-mono);
+    font-size: 10px; letter-spacing: 0.08em; padding: 3px 8px;
+    text-transform: uppercase; border-radius: 2px;
+  }
+  table.threats .sev.crit { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); }
+  table.threats .sev.high { color: var(--warn); border: 1px solid var(--warn); }
+  table.threats .sev.cfg { color: var(--text-dim); border: 1px solid var(--border-strong); }
+
+  /* ─── Callout ─────────────────────────────────────────────────── */
+  .callout {
+    border-top: 1px solid var(--border);
+    margin-top: 3vh; padding-top: 2.4vh;
+    font-family: var(--f-display); font-style: italic;
+    font-size: clamp(1.2rem, 1.8vw, 1.7rem); line-height: 1.3;
+    color: var(--text); max-width: 60ch;
+  }
+  .callout .em { color: var(--accent); }
+  .callout .stat {
+    display: inline-block; font-family: var(--f-mono); font-style: normal;
+    background: var(--accent-dim); color: var(--accent);
+    padding: 1px 10px; border: 1px solid var(--accent);
+    font-size: 0.85em; margin: 0 4px; vertical-align: middle;
+    font-weight: 500; letter-spacing: 0.04em;
+  }
+
+  /* ─── Checklist ───────────────────────────────────────────────── */
+  .checklist {
+    display: grid; grid-template-columns: 1fr 1fr;
+    column-gap: 4vw; row-gap: 0;
+    margin-top: 4vh;
+  }
+  .checklist .item {
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 14px 0; border-bottom: 1px solid var(--border);
+    font-size: 0.98rem; line-height: 1.4; color: var(--text);
+  }
+  .checklist .box {
+    flex-shrink: 0; width: 14px; height: 14px; margin-top: 4px;
+    border: 1px solid var(--border-strong); border-radius: 2px;
+  }
+
+  /* ─── Pipeline diagram (CI/CD) ────────────────────────────────── */
+  .pipe {
+    display: flex; align-items: stretch; gap: 0;
+    margin-top: 3vh; font-family: var(--f-mono);
+    font-size: 0.78rem; letter-spacing: 0.05em;
+  }
+  .pipe-step {
+    flex: 1; padding: 18px 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-right: none; text-align: center; color: var(--text-dim);
+    text-transform: uppercase;
+  }
+  .pipe-step:last-child { border-right: 1px solid var(--border); }
+  .pipe-step.gate { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); position: relative; z-index: 1; }
+  .pipe-step.gate strong { display: block; color: var(--accent); font-size: 0.95rem; font-family: var(--f-display); font-style: italic; text-transform: none; letter-spacing: 0; margin-top: 4px; }
+
+  /* ─── Title slide ─────────────────────────────────────────────── */
+  .title-slide {
+    padding: 0;
+    background:
+      radial-gradient(ellipse at top right, rgba(255, 106, 26, 0.08), transparent 50%),
+      var(--bg);
+  }
+  .title-slide::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 64px 64px;
+    pointer-events: none;
+  }
+  .title-slide .content {
+    height: 100%; max-width: none; padding: 12vh 7vw 10vh;
+    display: grid; grid-template-rows: auto 1fr auto;
+    position: relative;
+  }
+  .title-meta {
+    display: flex; justify-content: space-between;
+    font-family: var(--f-mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .title-meta .left { color: var(--accent); }
+  .title-main { align-self: center; }
+  .title-main .label {
+    font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.3em;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .title-main .label::before {
+    content: ""; width: 40px; height: 1px; background: var(--accent);
+  }
+  .title-main h1 {
+    font-family: var(--f-display); font-weight: 400;
+    font-size: clamp(4rem, 13vw, 11rem); line-height: 0.88;
+    letter-spacing: -0.04em; color: var(--text);
+  }
+  .title-main h1 em { font-style: italic; color: var(--accent); }
+  .title-main .sub {
+    font-family: var(--f-display); font-style: italic;
+    font-size: clamp(1.4rem, 2.4vw, 2.1rem);
+    color: var(--text-dim); margin-top: 32px; max-width: 32ch;
+    line-height: 1.25;
+  }
+  .title-bottom {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    font-family: var(--f-mono); font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .title-bottom .right { text-align: right; color: var(--text-dim); }
+
+  /* ─── Closing slide ───────────────────────────────────────────── */
+  .closing { padding: 0; background: var(--bg); }
+  .closing .content {
+    height: 100%; max-width: none; padding: 8vh 7vw;
+    display: grid; grid-template-rows: auto 1fr auto;
+  }
+  .closing-statement {
+    align-self: center; max-width: 22ch;
+  }
+  .closing-statement .stmt {
+    font-family: var(--f-display); font-weight: 400;
+    font-size: clamp(3rem, 8vw, 7rem); line-height: 0.95;
+    letter-spacing: -0.02em;
+  }
+  .closing-statement .stmt em { font-style: italic; color: var(--accent); }
+  .closing-statement .stmt-sub {
+    margin-top: 32px; max-width: 50ch;
+    color: var(--text-dim); font-size: 1.05rem; line-height: 1.6;
+  }
+
+  /* ─── Two-col with code (slide 8) ─────────────────────────────── */
+  .scan-grid {
+    display: grid; grid-template-columns: 1.1fr 0.9fr;
+    gap: 5vw; align-items: center; margin-top: 3vh;
+  }
+  ol.lifecycle { list-style: none; counter-reset: step; }
+  ol.lifecycle li {
+    counter-increment: step;
+    padding: 14px 0 14px 48px; position: relative;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.98rem; color: var(--text); line-height: 1.4;
+  }
+  ol.lifecycle li:last-child { border-bottom: none; }
+  ol.lifecycle li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute; left: 0; top: 14px;
+    font-family: var(--f-mono); font-size: 11px;
+    color: var(--accent); letter-spacing: 0.08em;
+  }
+  ol.lifecycle li .d {
+    display: block; color: var(--text-dim);
+    font-size: 0.88rem; margin-top: 4px;
+  }
+
+  /* ─── Security groups layout (slide 7) ────────────────────────── */
+  .sg-pills { margin-top: 4vh; display: flex; flex-wrap: wrap; gap: 10px; }
+  .sg-pills .pill { background: var(--surface); }
+  .sg-defaults {
+    margin-top: 3.6vh;
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1.6vw 4vw;
+  }
+  .sg-defaults .row {
+    display: flex; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+    font-family: var(--f-mono); font-size: 0.82rem;
+  }
+  .sg-defaults .row .n { color: var(--text); }
+  .sg-defaults .row .s { color: var(--text-dim); }
+  .sg-defaults .row.on .s { color: var(--ok); }
+  .sg-defaults .row.off .s { color: var(--text-faint); }
+
+  /* ─── Result + SCM split (slide 10) ───────────────────────────── */
+  .result-grid {
+    display: grid; grid-template-columns: 1fr 0.85fr;
+    gap: 4vw; margin-top: 3vh; align-items: start;
+  }
+  .scm-note {
+    background: var(--surface); border: 1px solid var(--border);
+    border-top: 2px solid var(--accent);
+    padding: 24px 26px;
+  }
+  .scm-note .label {
+    font-family: var(--f-mono); font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 16px;
+  }
+  .scm-note p {
+    color: var(--text); line-height: 1.55; font-size: 1rem;
+    margin-bottom: 1em;
+  }
+  .scm-note .path {
+    font-family: var(--f-mono); font-size: 0.82rem;
+    color: var(--text-dim); padding: 12px 14px;
+    background: var(--bg); border: 1px solid var(--border);
+    margin-top: 14px;
+  }
+  .scm-note .path span { color: var(--accent); }
+
+  /* ─── Hide chrome on title/closing ────────────────────────────── */
+  .slide[data-no-chrome] ~ .chrome-top,
+  .slide[data-no-chrome] ~ .chrome-bot { display: none; }
+
+  /* ─── Print: one slide per page ───────────────────────────────── */
+  @media print {
+    body, html { overflow: visible; height: auto; }
+    .deck, .slide { position: static; height: 100vh; opacity: 1 !important; pointer-events: auto; page-break-after: always; }
+    .slide:last-child { page-break-after: avoid; }
+    .chrome-top, .chrome-bot, .progress { display: none !important; }
+    * { animation: none !important; transition: none !important; }
+  }
+
+  /* ─── Mobile fallback ─────────────────────────────────────────── */
+  @media (max-width: 720px) {
+    .grid-2, .grid-3, .grid-thirds, .flow, .scan-grid, .result-grid, .checklist, .sg-defaults { grid-template-columns: 1fr !important; gap: 24px !important; }
+    .slide { padding: 9vh 6vw; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+
+<div class="deck" id="deck">
+
+  <!-- ─── 01 · TITLE ─────────────────────────────────────────── -->
+  <section class="slide title-slide" data-no-chrome>
+    <div class="content">
+      <div class="title-meta reveal">
+        <div class="left">Prisma AIRS · Model Security</div>
+        <div>2026 · Customer Deployment Briefing</div>
+      </div>
+
+      <div class="title-main reveal">
+        <div class="label">A deployment walkthrough</div>
+        <h1>Model<br><em>Scanning.</em></h1>
+        <div class="sub">From three credentials to a CI/CD gate &mdash; everything a customer needs to ship.</div>
+      </div>
+
+      <div class="title-bottom reveal">
+        <div class="left">Press <kbd style="font-family: var(--f-mono); padding: 2px 8px; border: 1px solid var(--border); border-radius: 3px; color: var(--text-dim);">&rarr;</kbd> to begin</div>
+        <div class="right">12 slides · ~15 min</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 02 · THE PROBLEM ───────────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">02</span> · The Problem</div>
+      <h1 class="display reveal">An ML model<br>is an <em>unsigned executable.</em></h1>
+      <div class="grid-2" style="margin-top: 5vh;">
+        <p class="lede reveal" style="margin: 0;">
+          A pickle file deserializes into arbitrary Python. A GGUF prompt template can inject shell commands. A
+          HuggingFace repo can ship a Trojan in weights and a backdoor in <code style="font-family: var(--f-mono); color: var(--accent);">requirements.txt</code>.
+          Yet most teams pull models from public registries with no inspection at all.
+        </p>
+        <ul class="minimal reveal" style="margin: 0;">
+          <li><span class="k">Code</span><span class="v">Pickle, Keras H5, GGUF templates &mdash; all execute on load.</span></li>
+          <li><span class="k">Chain</span><span class="v">Compromised deps, poisoned weights, tampered cards.</span></li>
+          <li><span class="k">Hidden</span><span class="v">Neural backdoors and exfiltration channels in weights.</span></li>
+          <li><span class="k">Blind</span><span class="v">No AV equivalent. No deploy-time gate. No audit trail.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 03 · PREREQUISITES ─────────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">03</span> · Prerequisites</div>
+      <h2 class="headline reveal">What you need <em>before</em> anything works.</h2>
+
+      <ul class="minimal reveal" style="margin-top: 5vh;">
+        <li><span class="k">Account</span><span class="t">Prisma AIRS subscription</span><span class="v" style="margin-left: auto;">enabled on the tenant by Palo Alto</span></li>
+        <li><span class="k">Console</span><span class="t">Strata Cloud Manager access</span><span class="v" style="margin-left: auto;">strata.paloaltonetworks.com</span></li>
+        <li><span class="k">Runtime</span><span class="t">Python 3.10 &ndash; 3.12</span><span class="v" style="margin-left: auto;">3.12 recommended &mdash; 3.13 is not supported</span></li>
+        <li><span class="k">Tools</span><span class="t">curl &amp; jq on the install host</span><span class="v" style="margin-left: auto;">install scripts are POSIX shell</span></li>
+        <li><span class="k">Network</span><span class="t">Outbound HTTPS to 4 hosts</span><span class="v" style="margin-left: auto;">api.sase / auth.apps / strata · plus the model source</span></li>
+      </ul>
+
+      <p class="lede reveal" style="margin-top: 5vh; font-family: var(--f-display); font-style: italic; font-size: clamp(1.05rem, 1.3vw, 1.3rem); color: var(--text);">
+        &ldquo;If your team has a secret manager and outbound 443, you're already most of the way there.&rdquo;
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 04 · THREE CREDENTIALS ─────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">04</span> · Credentialing</div>
+      <h2 class="headline reveal">The entire trust chain<br>is <em>three strings.</em></h2>
+
+      <div class="grid-3" style="margin-top: 5vh;">
+        <div class="card reveal">
+          <div class="card-num">01</div>
+          <h3>Client ID</h3>
+          <div class="val">AIRS@&lt;tsg-id&gt;.iam.<br>panserviceaccount.com</div>
+          <div class="src"><strong>Settings</strong> &rarr; Identity &amp; Access &rarr; Service Accounts. Create with roles <code style="font-family: var(--f-mono); font-size: 0.85em; color: var(--accent);">ai_ms.scans</code>, <code style="font-family: var(--f-mono); font-size: 0.85em; color: var(--accent);">ai_ms.security_groups</code>, <code style="font-family: var(--f-mono); font-size: 0.85em; color: var(--accent);">ai_ms_pypi_auth</code>.</div>
+        </div>
+        <div class="card reveal">
+          <div class="card-num">02</div>
+          <h3>Client Secret</h3>
+          <div class="val">aaaaaaaa-bbbb-cccc-<br>dddd-eeeeeeeeeeee</div>
+          <div class="src">UUID shown <strong>exactly once</strong> at service-account creation. Store in Vault / Secrets Manager / GitHub Secrets immediately.</div>
+        </div>
+        <div class="card reveal">
+          <div class="card-num">03</div>
+          <h3>TSG ID</h3>
+          <div class="val">1234567890</div>
+          <div class="src"><strong>Settings</strong> &rarr; Tenant Management. The numeric Tenant Service Group ID for your organization.</div>
+        </div>
+      </div>
+
+      <p class="lede reveal" style="text-align: center; margin: 5vh auto 0;">
+        These three values are the only secrets in the entire integration. Everything else &mdash; tokens, PyPI URLs, scan UUIDs &mdash; is derived at runtime.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 05 · PRIVATE PYPI ──────────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">05</span> · Install</div>
+      <h2 class="headline reveal">The SDK lives behind<br>an <em>authenticated PyPI.</em></h2>
+
+      <div class="flow reveal" style="margin-top: 5vh;">
+        <div class="flow-stack">
+          <div class="flow-node">
+            <div class="step">1</div>
+            <div class="title">Token Exchange</div>
+            <div class="body">POST auth.apps.paloaltonetworks.com/<wbr>oauth2/access_token<br>&nbsp;&nbsp;grant_type=client_credentials</div>
+          </div>
+          <div class="flow-arrow">&darr;</div>
+          <div class="flow-node">
+            <div class="step">2</div>
+            <div class="title">Resolve Index URL</div>
+            <div class="body">GET api.sase.paloaltonetworks.com/<wbr>aims/mgmt/v1/pypi/authenticate<br>&nbsp;&nbsp;Authorization: Bearer &lt;token&gt;</div>
+          </div>
+          <div class="flow-arrow">&darr;</div>
+          <div class="flow-node">
+            <div class="step">3</div>
+            <div class="title">Install</div>
+            <div class="body">pip install model-security-client<br>&nbsp;&nbsp;--extra-index-url &lt;short-lived url&gt;</div>
+          </div>
+        </div>
+
+        <div class="flow-aside">
+          <p><strong>Why two steps?</strong> The SDK (<code style="font-family: var(--f-mono); color: var(--accent);">model-security-client</code> and its sibling <code style="font-family: var(--f-mono); color: var(--accent);">airs-schemas</code>) is proprietary &mdash; it lives on Palo Alto's private PyPI, not public PyPI. A naked <code style="font-family: var(--f-mono); color: var(--accent);">pip install</code> will fail.</p>
+
+          <p><strong>Why a script?</strong> Both <code style="font-family: var(--f-mono); color: var(--accent);">setup-sdk.sh</code> and <code style="font-family: var(--f-mono); color: var(--accent);">get-pypi-url.sh</code> ship in this repo. The token and PyPI URL are short-lived, fetched fresh per install. Credentials never leave the host; only the bearer token touches our cloud.</p>
+
+          <p><strong>Why it matters for enterprise:</strong> the install is reproducible inside a hardened build agent, with no human in the loop and no long-lived registry token to leak.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 06 · ONBOARDING ────────────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">06</span> · Onboarding</div>
+      <h2 class="headline reveal">Five minutes<br>to <em>first scan.</em></h2>
+
+      <div class="grid-thirds reveal" style="margin-top: 5vh;">
+        <div>
+          <div style="font-family: var(--f-display); font-style: italic; font-size: clamp(4rem, 8vw, 7rem); line-height: 0.9; color: var(--accent);">~2 min</div>
+          <div style="font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.18em; color: var(--text-faint); text-transform: uppercase; margin-top: 12px;">From clone to verdict, assuming credentials in hand</div>
+        </div>
+        <div class="term">
+          <div class="ln"><span class="pr">$</span><span class="cm">git clone &lt;repo&gt; &amp;&amp; cd sudo-airs-model-scanning</span><span class="cc"># 10s</span></div>
+          <div class="ln"><span class="pr">$</span><span class="cm">python3 -m venv .venv &amp;&amp; source .venv/bin/activate</span><span class="cc"># 5s</span></div>
+          <div class="ln"><span class="pr">$</span><span class="cm">cp .env.template .env</span><span class="cc"># paste 3 creds</span></div>
+          <div class="ln"><span class="pr">$</span><span class="cm">./setup-sdk.sh</span><span class="cc"># ~60s</span></div>
+          <div class="ln"><span class="pr">$</span><span class="cm">python examples/list_security_groups.py</span><span class="cc"># first API call</span></div>
+          <div class="ln" style="margin-top: 14px; color: var(--ok);"><span class="pr" style="color: var(--ok);">&rarr;</span><span class="cm" style="color: var(--ok);">Found 5 security group(s). Ready.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 07 · SECURITY GROUPS ───────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">07</span> · Configuration</div>
+      <h2 class="headline reveal">Policy lives in <em>Security Groups.</em></h2>
+      <p class="lede reveal">One group per source type. Each group holds a set of rules &mdash; enable / disable / set blocking &mdash; that get applied to every scan from that source. Default groups are auto-created per tenant, so customers can scan on day one.</p>
+
+      <div class="sg-pills reveal">
+        <span class="pill hot">HuggingFace</span>
+        <span class="pill hot">AWS S3</span>
+        <span class="pill hot">Google Cloud Storage</span>
+        <span class="pill hot">Azure Blob</span>
+        <span class="pill hot">Local Disk</span>
+        <span class="pill">Artifactory</span>
+        <span class="pill">GitLab</span>
+      </div>
+
+      <div class="sg-defaults reveal">
+        <div>
+          <div class="row on"><span class="n">Deserialization Threat Detection</span><span class="s">BLOCKING</span></div>
+          <div class="row on"><span class="n">Malicious Code Scanner</span><span class="s">BLOCKING</span></div>
+          <div class="row on"><span class="n">Unsafe Format Check (Pickle, H5)</span><span class="s">BLOCKING</span></div>
+          <div class="row on"><span class="n">License Validation</span><span class="s">BLOCKING</span></div>
+          <div class="row on"><span class="n">Publisher Verification</span><span class="s">WARNING</span></div>
+        </div>
+        <div>
+          <div class="row on"><span class="n">Neural Backdoor Detection</span><span class="s">BLOCKING</span></div>
+          <div class="row on"><span class="n">Supply Chain Integrity</span><span class="s">BLOCKING</span></div>
+          <div class="row on"><span class="n">Model Card Completeness</span><span class="s">WARNING</span></div>
+          <div class="row on"><span class="n">GGUF Template Injection</span><span class="s">BLOCKING</span></div>
+          <div class="row off"><span class="n">+ Custom rules (per tenant policy)</span><span class="s">CONFIGURABLE</span></div>
+        </div>
+      </div>
+
+      <p class="lede reveal" style="margin-top: 3vh; font-size: 0.92rem; color: var(--text-faint);">
+        UUIDs differ per tenant. The reference code never hardcodes them &mdash; it calls <code style="font-family: var(--f-mono); color: var(--accent);">list_security_groups()</code> and filters by source type.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 08 · SCAN CALL + LIFECYCLE ─────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">08</span> · The API</div>
+      <h2 class="headline reveal">Three lines, then<br><em>a minute of work.</em></h2>
+
+      <div class="scan-grid">
+        <pre class="code reveal"><span class="k">from</span> model_security_client.api <span class="k">import</span> ModelSecurityAPIClient
+<span class="k">from</span> uuid <span class="k">import</span> UUID
+
+client = ModelSecurityAPIClient(
+    base_url=<span class="s">"https://api.sase.paloaltonetworks.com/aims"</span>,
+)
+
+result = client.scan(
+    security_group_uuid=UUID(<span class="s">"&lt;hf-group-uuid&gt;"</span>),
+    model_uri=<span class="s">"https://huggingface.co/microsoft/DialoGPT-medium"</span>,
+)
+
+<span class="c"># auth is implicit &mdash; SDK reads env vars</span></pre>
+
+        <ol class="lifecycle reveal">
+          <li><strong>Download</strong>
+            <span class="d">Service pulls all files from the source URI.</span></li>
+          <li><strong>Catalog</strong>
+            <span class="d">Identify formats: PyTorch, ONNX, SafeTensors, Pickle, GGUF&hellip;</span></li>
+          <li><strong>Evaluate</strong>
+            <span class="d">Run every enabled rule in the selected Security Group.</span></li>
+          <li><strong>Aggregate</strong>
+            <span class="d">Produce a single verdict: ALLOWED &middot; BLOCKED &middot; WARNING.</span></li>
+          <li><strong>Persist</strong>
+            <span class="d">Full findings to SCM; summary returned to API caller.</span></li>
+        </ol>
+      </div>
+
+      <p class="lede reveal" style="margin-top: 3vh; font-size: 0.9rem;">
+        Typical latency: <span style="color: var(--accent);">30 &ndash; 90 seconds</span> for small/medium models &middot; up to 15 minutes for 10&nbsp;GB+ models.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 09 · THREATS ───────────────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">09</span> · Coverage</div>
+      <h2 class="headline reveal">What <em>gets caught.</em></h2>
+
+      <table class="threats reveal">
+        <thead><tr><th>Category</th><th>Examples</th><th>Severity</th></tr></thead>
+        <tbody>
+          <tr><td>Malicious Code Execution</td><td>Pickle <code style="font-family: var(--f-mono); color: var(--accent);">__reduce__</code> RCE · hidden payloads in weights · metadata shell injection</td><td><span class="sev crit">Blocking</span></td></tr>
+          <tr><td>Supply Chain Attacks</td><td>Compromised requirements · poisoned weights · tampered model cards</td><td><span class="sev crit">Blocking</span></td></tr>
+          <tr><td>Neural Backdoors</td><td>Trigger patterns · trojan architectures · exfiltration channels</td><td><span class="sev crit">Blocking</span></td></tr>
+          <tr><td>Unsafe Formats</td><td>Pickle (<code style="font-family: var(--f-mono); color: var(--accent);">.pkl</code>) · Keras H5 · anything that executes on load</td><td><span class="sev high">High</span></td></tr>
+          <tr><td>License Violations</td><td>GPL/AGPL where policy requires permissive · missing license file</td><td><span class="sev cfg">Configurable</span></td></tr>
+          <tr><td>Unverified Publishers</td><td>Unknown orgs · no model card · missing security metadata</td><td><span class="sev cfg">Configurable</span></td></tr>
+          <tr><td>GGUF Template Injection</td><td><code style="font-family: var(--f-mono); color: var(--accent);">PAIT-GGUF-101</code> &middot; e.g. <code style="font-family: var(--f-mono); color: var(--accent);">ykilcher/totally-harmless-model</code></td><td><span class="sev crit">Blocking</span></td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout reveal">
+        <span class="stat">~95%</span> of real-world blocks are <span class="em">policy violations</span> &mdash; format, license, publisher.
+        <span class="stat">~5%</span> are <span class="em">actual threats.</span> Rare. Devastating when found.
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 10 · RESULT + SCM ──────────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">10</span> · Results</div>
+      <h2 class="headline reveal">The API gives you the <em>verdict.</em><br>SCM gives you the <em>why.</em></h2>
+
+      <div class="result-grid">
+        <pre class="code reveal">result.eval_outcome
+<span class="c"># &rarr; 'EvalOutcome.ALLOWED' | 'BLOCKED' | 'WARNING'</span>
+
+result.uuid                <span class="c"># scan ID</span>
+result.eval_summary.rules_passed
+result.eval_summary.rules_failed
+result.eval_summary.total_rules
+result.total_files_scanned
+result.scanner_version
+result.model_formats       <span class="c"># ['pytorch', 'safetensors', ...]</span>
+
+<span class="k">for</span> v <span class="k">in</span> result.violations:
+    print(v.threat, v.file, v.remediation.steps)</pre>
+
+        <div class="scm-note reveal">
+          <div class="label">&#9888; By design</div>
+          <p>The SDK returns <strong>summary data only.</strong> Per-rule findings, threat-intel links, file-level evidence and remediation guidance live in the Strata Cloud Manager UI.</p>
+          <p>Deep-link to any scan with its UUID:</p>
+          <div class="path">strata.paloaltonetworks.com &rsaquo; <span>Insights</span> &rsaquo; <span>Prisma AIRS</span> &rsaquo; <span>Model Security</span> &rsaquo; <span>Scans</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 11 · CI/CD ─────────────────────────────────────────── -->
+  <section class="slide">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">11</span> · Integration</div>
+      <h2 class="headline reveal">Bolt the verdict into<br>your <em>promotion pipeline.</em></h2>
+
+      <pre class="code reveal" style="margin-top: 4vh;"><span class="k">def</span> validate_model_for_deployment(model_uri, security_group_uuid, blocking=<span class="k">True</span>):
+    result = client.scan(security_group_uuid=security_group_uuid, model_uri=model_uri)
+    is_safe = <span class="k">str</span>(result.eval_outcome) == <span class="s">'EvalOutcome.ALLOWED'</span>
+    <span class="k">if not</span> is_safe <span class="k">and</span> blocking:
+        sys.exit(<span class="s">1</span>)   <span class="c"># fail the build</span>
+    <span class="k">return</span> is_safe, result</pre>
+
+      <div class="pipe reveal">
+        <div class="pipe-step">Train</div>
+        <div class="pipe-step">Register</div>
+        <div class="pipe-step gate">Prisma AIRS<br><strong>scan gate</strong></div>
+        <div class="pipe-step">Stage</div>
+        <div class="pipe-step">Serve</div>
+      </div>
+
+      <p class="lede reveal" style="margin-top: 3.5vh; font-size: 0.95rem;">
+        Drops into <strong>GitHub Actions</strong>, <strong>GitLab CI</strong>, <strong>Jenkins</strong>, or any registry-promotion hook. The three credentials come from your existing secret manager &mdash; no new infrastructure required.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 12 · CHECKLIST ─────────────────────────────────────── -->
+  <section class="slide closing" data-no-chrome>
+    <div class="content">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-faint);" class="reveal">
+        <div style="color: var(--accent);">12 &nbsp;&middot;&nbsp; Deployment Checklist</div>
+        <div>Prisma AIRS · Model Security</div>
+      </div>
+
+      <div class="closing-statement reveal" style="align-self: start; margin-top: 4vh; max-width: none;">
+        <div class="stmt"><em>Ship it.</em></div>
+        <div class="stmt-sub">Eleven boxes between today and a production model-security gate.</div>
+
+        <div class="checklist">
+          <div class="item"><div class="box"></div><div>AIRS subscription active on the tenant</div></div>
+          <div class="item"><div class="box"></div><div>Service account created &middot; three credentials captured</div></div>
+          <div class="item"><div class="box"></div><div>Credentials stored in secret manager (not in code)</div></div>
+          <div class="item"><div class="box"></div><div>Firewall egress allowed to PANW + model source hosts</div></div>
+          <div class="item"><div class="box"></div><div>Python 3.12 environment provisioned on build agents</div></div>
+          <div class="item"><div class="box"></div><div><code style="font-family: var(--f-mono); color: var(--accent);">setup-sdk.sh</code> runs cleanly on a target host</div></div>
+          <div class="item"><div class="box"></div><div><code style="font-family: var(--f-mono); color: var(--accent);">list_security_groups.py</code> returns expected defaults</div></div>
+          <div class="item"><div class="box"></div><div>Reference scan against a known-safe model passes</div></div>
+          <div class="item"><div class="box"></div><div>CI gate function wired into promotion pipeline</div></div>
+          <div class="item"><div class="box"></div><div>Runbook drafted for &ldquo;what to do when a scan blocks&rdquo;</div></div>
+          <div class="item"><div class="box"></div><div>Security Group rules reviewed against customer policy</div></div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-faint); margin-top: 4vh;" class="reveal">
+        <div>End of deck</div>
+        <div>strata.paloaltonetworks.com</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ─── Chrome ─────────────────────────────────────────────── -->
+<div class="chrome-top">
+  <div class="mark">Prisma AIRS <span class="dot">·</span> Model Security</div>
+  <div>Deployment Briefing</div>
+</div>
+<div class="chrome-bot">
+  <div class="hint"><kbd>&larr;</kbd><kbd>&rarr;</kbd> navigate &middot; <kbd>F</kbd> fullscreen &middot; <kbd>P</kbd> print</div>
+  <div class="counter" id="counter">01 / 12</div>
+</div>
+
+<script>
+(() => {
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const chromeTop = document.querySelector('.chrome-top');
+  const chromeBot = document.querySelector('.chrome-bot');
+  const total = slides.length;
+  let idx = 0;
+
+  // Restore from hash if present
+  const fromHash = parseInt(location.hash.replace('#', ''), 10);
+  if (!isNaN(fromHash) && fromHash >= 1 && fromHash <= total) idx = fromHash - 1;
+
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function show(i) {
+    idx = Math.max(0, Math.min(total - 1, i));
+    slides.forEach((s, k) => s.classList.toggle('active', k === idx));
+    counter.textContent = `${pad(idx + 1)} / ${pad(total)}`;
+    progress.style.width = `${((idx + 1) / total) * 100}%`;
+
+    const noChrome = slides[idx].hasAttribute('data-no-chrome');
+    chromeTop.style.opacity = noChrome ? '0' : '1';
+    chromeBot.style.opacity = noChrome ? '0' : '1';
+
+    history.replaceState(null, '', '#' + (idx + 1));
+    // Re-trigger reveal animations
+    slides[idx].querySelectorAll('.reveal').forEach((el) => {
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    });
+  }
+
+  function next() { show(idx + 1); }
+  function prev() { show(idx - 1); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'PageDown':
+      case ' ': e.preventDefault(); next(); break;
+      case 'ArrowLeft':
+      case 'PageUp': e.preventDefault(); prev(); break;
+      case 'Home': e.preventDefault(); show(0); break;
+      case 'End': e.preventDefault(); show(total - 1); break;
+      case 'f': case 'F':
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+        break;
+      case 'p': case 'P':
+        window.print();
+        break;
+    }
+  });
+
+  // Click left/right halves to navigate
+  document.addEventListener('click', (e) => {
+    // Don't trigger on links/buttons or selected text
+    if (e.target.closest('a, button')) return;
+    if (window.getSelection().toString().length > 0) return;
+    const x = e.clientX / window.innerWidth;
+    if (x > 0.5) next(); else prev();
+  });
+
+  // Touch swipe
+  let touchX = 0;
+  document.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) (dx < 0 ? next : prev)();
+  });
+
+  show(idx);
+})();
+</script>
+
+</body>
+</html>

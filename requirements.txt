@@ -1,0 +1,28 @@
+# Prisma AIRS Model Security - Dependencies
+# Install these first, then run ./setup-sdk.sh to add the proprietary SDK
+
+# Jupyter Environment
+jupyter==1.1.1
+notebook==7.4.7
+ipykernel==7.0.1
+ipywidgets==8.1.7
+
+# Data Analysis & Visualization
+pandas==2.3.3
+matplotlib==3.10.7
+seaborn==0.13.2
+numpy==2.3.3
+
+# HTTP Client (used by SDK)
+requests==2.32.5
+
+# Note: model-security-client and airs-schemas are proprietary packages
+# installed separately via ./setup-sdk.sh (see SDK-TLDR.md for details)
+
+# Backend Dependencies (Demo UI)
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+websockets==13.1
+pytest==8.3.3
+httpx==0.27.2
+pytest-asyncio==0.24.0

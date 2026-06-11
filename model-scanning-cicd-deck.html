@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prisma AIRS · CI/CD Integration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #0b0d10;
+    --bg-soft:   #11141a;
+    --surface:   #161a21;
+    --surface-2: #1c2129;
+    --border:    #262b34;
+    --border-strong: #3a414c;
+    --text:      #ece9e3;
+    --text-dim:  #8a8f99;
+    --text-faint:#54595f;
+    --accent:    #ff6a1a;
+    --accent-dim:#3a1a0a;
+    --ok:        #2ecc71;
+    --warn:      #f5b942;
+    --bad:       #ff3b30;
+    --info:      #5ab8ff;
+
+    --f-display: 'Instrument Serif', Georgia, serif;
+    --f-body:    'IBM Plex Sans', system-ui, sans-serif;
+    --f-mono:    'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: var(--bg); color: var(--text); font-family: var(--f-body); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-feature-settings: "ss01", "ss02"; }
+  body { overflow: hidden; }
+
+  /* ─── Deck container ──────────────────────────────────────────── */
+  .deck { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+  .slide {
+    position: absolute; inset: 0;
+    padding: 6vh 6vw 8vh;
+    display: flex; flex-direction: column;
+    opacity: 0; pointer-events: none;
+    transition: opacity 320ms ease;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .slide.active { opacity: 1; pointer-events: auto; }
+  .slide.active .reveal { animation: rise 520ms cubic-bezier(.2,.7,.2,1) backwards; }
+  .reveal:nth-child(1) { animation-delay: 80ms; }
+  .reveal:nth-child(2) { animation-delay: 180ms; }
+  .reveal:nth-child(3) { animation-delay: 280ms; }
+  .reveal:nth-child(4) { animation-delay: 380ms; }
+  .reveal:nth-child(5) { animation-delay: 480ms; }
+  .reveal:nth-child(6) { animation-delay: 580ms; }
+  .reveal:nth-child(7) { animation-delay: 680ms; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  /* ─── Chrome ─────────────────────────────────────────────────── */
+  .chrome-top, .chrome-bot {
+    position: fixed; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1.4vh 2.2vw;
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.14em;
+    color: var(--text-faint); text-transform: uppercase;
+    z-index: 50; pointer-events: none;
+  }
+  .chrome-top { top: 0; }
+  .chrome-bot { bottom: 0; }
+  .chrome-top .mark { color: var(--text-dim); }
+  .chrome-top .mark .dot { color: var(--accent); }
+  .chrome-bot .counter { font-variant-numeric: tabular-nums; color: var(--text-dim); }
+  .chrome-bot .hint { color: var(--text-faint); }
+  .chrome-bot .hint kbd {
+    font-family: var(--f-mono); font-size: 10px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 3px; color: var(--text-dim);
+    margin: 0 2px;
+  }
+  .progress {
+    position: fixed; top: 0; left: 0; height: 2px;
+    background: var(--accent); z-index: 60;
+    transition: width 300ms ease;
+  }
+
+  /* ─── Source badge (DOC / REF) ───────────────────────────────── */
+  .src-badge {
+    position: fixed; top: 1.4vh; right: 50%; transform: translateX(50%);
+    font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; padding: 4px 10px; border-radius: 2px;
+    z-index: 51; pointer-events: none; transition: opacity 200ms;
+    opacity: 0;
+  }
+  .src-badge.doc { color: var(--ok); border: 1px solid var(--ok); background: rgba(46, 204, 113, 0.08); }
+  .src-badge.ref { color: var(--warn); border: 1px solid var(--warn); background: rgba(245, 185, 66, 0.08); }
+  .src-badge.show { opacity: 1; }
+
+  /* ─── Eyebrow + headlines ────────────────────────────────────── */
+  .eyebrow {
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--accent);
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 2.2vh;
+  }
+  .eyebrow::before { content: ""; width: 28px; height: 1px; background: var(--accent); }
+  .eyebrow .num { color: var(--text-dim); font-weight: 400; }
+
+  h1.display {
+    font-family: var(--f-display); font-weight: 400;
+    font-size: clamp(2.6rem, 6vw, 5.4rem); line-height: 0.98;
+    letter-spacing: -0.02em;
+  }
+  h1.display em { font-style: italic; color: var(--accent); font-weight: 400; }
+  h2.headline {
+    font-family: var(--f-display); font-weight: 400;
+    font-size: clamp(2rem, 4.2vw, 3.8rem); line-height: 1.02;
+    letter-spacing: -0.015em; max-width: 24ch;
+  }
+  h2.headline em { font-style: italic; color: var(--accent); }
+  .lede {
+    font-family: var(--f-body); font-weight: 300;
+    font-size: clamp(0.95rem, 1.2vw, 1.15rem); line-height: 1.55;
+    color: var(--text-dim); max-width: 64ch;
+    margin-top: 2vh;
+  }
+
+  .content { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 1500px; margin: 0 auto; width: 100%; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4vw; align-items: start; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4vw; }
+  .grid-thirds { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 4vw; align-items: center; }
+
+  /* ─── Code blocks ─────────────────────────────────────────────── */
+  pre.code {
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
+    padding: 18px 22px; font-family: var(--f-mono);
+    font-size: clamp(0.72rem, 0.82vw, 0.86rem); line-height: 1.55;
+    color: var(--text); overflow: auto;
+    border-radius: 2px;
+  }
+  pre.code .c { color: var(--text-faint); font-style: italic; }
+  pre.code .k { color: var(--accent); }
+  pre.code .s { color: #d4cda3; }
+  pre.code .v { color: var(--info); }
+  pre.code .n { color: var(--text); }
+  pre.code .p { color: var(--text-dim); }
+  pre.code.tight { font-size: clamp(0.7rem, 0.78vw, 0.82rem); padding: 16px 20px; line-height: 1.5; }
+
+  .code-label {
+    display: inline-block;
+    font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--text-dim);
+    padding: 4px 10px; border: 1px solid var(--border);
+    background: var(--surface); margin-bottom: 10px;
+  }
+  .code-label .fp { color: var(--accent); margin-right: 6px; }
+
+  /* ─── Term block ─────────────────────────────────────────────── */
+  .term {
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: 2px; font-family: var(--f-mono);
+    font-size: 0.82rem; line-height: 1.75;
+    padding: 18px 22px;
+  }
+  .term .ln { display: flex; gap: 14px; align-items: baseline; }
+  .term .pr { color: var(--accent); user-select: none; }
+  .term .cm { color: var(--text); }
+  .term .cc { color: var(--text-faint); margin-left: auto; padding-left: 24px; }
+  .term .out { color: var(--text-dim); padding-left: 24px; }
+  .term .ok { color: var(--ok); }
+  .term .bad { color: var(--bad); }
+
+  /* ─── Lists ──────────────────────────────────────────────────── */
+  ul.minimal { list-style: none; }
+  ul.minimal li {
+    font-size: 1rem; line-height: 1.5;
+    color: var(--text); padding: 1.2vh 0;
+    border-bottom: 1px solid var(--border);
+    display: flex; gap: 18px; align-items: baseline;
+  }
+  ul.minimal li:last-child { border-bottom: none; }
+  ul.minimal li .k {
+    font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.14em;
+    color: var(--accent); min-width: 90px; text-transform: uppercase;
+    font-weight: 500;
+  }
+  ul.minimal li .v { color: var(--text-dim); }
+  ul.minimal li .t { color: var(--text); font-weight: 500; }
+
+  /* ─── Cards ──────────────────────────────────────────────────── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 22px 22px; border-radius: 2px;
+    position: relative; overflow: hidden;
+  }
+  .card .card-num {
+    position: absolute; top: 12px; right: 14px;
+    font-family: var(--f-mono); font-size: 10px;
+    color: var(--text-faint); letter-spacing: 0.1em;
+  }
+  .card h3 {
+    font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--accent); font-weight: 500;
+    margin-bottom: 14px;
+  }
+  .card .body {
+    color: var(--text); font-size: 0.92rem; line-height: 1.5;
+  }
+  .card .body strong { font-weight: 500; }
+  .card .body code {
+    font-family: var(--f-mono); font-size: 0.88em; color: var(--accent);
+  }
+
+  /* ─── Pattern flow (slide 4) ─────────────────────────────────── */
+  .pattern {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 0; margin-top: 3vh;
+    border: 1px solid var(--border);
+  }
+  .pattern .step {
+    padding: 24px 22px; border-right: 1px solid var(--border);
+    background: var(--surface); position: relative;
+  }
+  .pattern .step:last-child { border-right: none; }
+  .pattern .step .ord {
+    font-family: var(--f-display); font-style: italic;
+    font-size: 3.4rem; color: var(--accent); line-height: 1;
+    margin-bottom: 12px;
+  }
+  .pattern .step h4 {
+    font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.16em;
+    color: var(--text); text-transform: uppercase; margin-bottom: 12px;
+    font-weight: 500;
+  }
+  .pattern .step p { color: var(--text-dim); font-size: 0.86rem; line-height: 1.5; }
+  .pattern .step code {
+    font-family: var(--f-mono); font-size: 0.78rem; color: var(--accent);
+    background: var(--bg); padding: 1px 6px; border: 1px solid var(--border);
+  }
+
+  /* ─── Install steps ──────────────────────────────────────────── */
+  .install-steps {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 18px; margin-top: 2.6vh;
+  }
+  .install-step {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 18px 20px; position: relative;
+  }
+  .install-step::before {
+    content: attr(data-step);
+    position: absolute; top: -1px; left: -1px;
+    background: var(--accent); color: var(--bg);
+    padding: 3px 10px; font-family: var(--f-mono);
+    font-size: 10px; letter-spacing: 0.12em;
+    font-weight: 700;
+  }
+  .install-step h4 {
+    font-family: var(--f-mono); font-size: 11px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    margin: 8px 0 10px; color: var(--text);
+  }
+  .install-step pre {
+    font-family: var(--f-mono); font-size: 0.78rem;
+    color: var(--text); background: var(--bg);
+    padding: 10px 12px; border: 1px solid var(--border);
+    line-height: 1.5; overflow-x: auto;
+  }
+  .install-step pre .c { color: var(--text-faint); }
+  .install-step pre .k { color: var(--accent); }
+  .install-step p { color: var(--text-dim); font-size: 0.85rem; line-height: 1.5; margin-top: 8px; }
+
+  /* ─── IAM perms ──────────────────────────────────────────────── */
+  .perms {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 14px; margin-top: 3vh;
+  }
+  .perm {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 18px; text-align: center;
+  }
+  .perm .name {
+    font-family: var(--f-mono); font-size: 0.92rem;
+    color: var(--accent); margin-bottom: 8px; font-weight: 500;
+  }
+  .perm .desc { color: var(--text-dim); font-size: 0.84rem; line-height: 1.45; }
+
+  /* ─── Exit table ─────────────────────────────────────────────── */
+  table.semantics {
+    width: 100%; border-collapse: collapse; margin-top: 2.4vh;
+    font-size: 0.92rem;
+  }
+  table.semantics th {
+    text-align: left; padding: 12px 14px;
+    font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--text-faint); font-weight: 500;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  table.semantics td {
+    padding: 14px; border-bottom: 1px solid var(--border);
+    color: var(--text-dim); line-height: 1.45;
+    vertical-align: top;
+  }
+  table.semantics td:first-child { color: var(--text); font-weight: 500; }
+  table.semantics td code {
+    font-family: var(--f-mono); font-size: 0.88em; color: var(--accent);
+  }
+  table.semantics .x { color: var(--bad); font-family: var(--f-mono); font-weight: 700; }
+  table.semantics .o { color: var(--ok); font-family: var(--f-mono); font-weight: 700; }
+
+  /* ─── Platforms (slide 12) ───────────────────────────────────── */
+  .platforms { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 2.4vh; }
+  .platform {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 18px 20px;
+  }
+  .platform .head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .platform h4 {
+    font-family: var(--f-display); font-style: italic;
+    font-size: 1.3rem; color: var(--text); font-weight: 400;
+  }
+  .platform .file {
+    font-family: var(--f-mono); font-size: 10px;
+    letter-spacing: 0.12em; color: var(--text-faint); text-transform: uppercase;
+  }
+  .platform pre {
+    font-family: var(--f-mono); font-size: 0.72rem;
+    color: var(--text); background: var(--bg);
+    padding: 10px 12px; border: 1px solid var(--border);
+    line-height: 1.5; overflow: hidden; white-space: pre-wrap; word-break: break-word;
+  }
+  .platform pre .c { color: var(--text-faint); }
+  .platform pre .k { color: var(--accent); }
+
+  /* ─── Callout ────────────────────────────────────────────────── */
+  .callout {
+    border-top: 1px solid var(--border);
+    margin-top: 3vh; padding-top: 2vh;
+    font-family: var(--f-display); font-style: italic;
+    font-size: clamp(1.05rem, 1.5vw, 1.4rem); line-height: 1.3;
+    color: var(--text); max-width: 62ch;
+  }
+  .callout .em { color: var(--accent); }
+
+  /* ─── Reporting flow (slide 13) ──────────────────────────────── */
+  .report-flow {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3vw;
+    margin-top: 3vh; align-items: start;
+  }
+  .report-card {
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 20px 22px;
+  }
+  .report-card h4 {
+    font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+    font-weight: 500;
+  }
+  .report-card p { color: var(--text); font-size: 0.94rem; line-height: 1.55; margin-bottom: 10px; }
+  .report-card p:last-child { margin-bottom: 0; }
+  .report-card code { font-family: var(--f-mono); color: var(--accent); font-size: 0.88em; }
+
+  /* ─── Checklist ──────────────────────────────────────────────── */
+  .checklist {
+    display: grid; grid-template-columns: 1fr 1fr;
+    column-gap: 4vw; row-gap: 0;
+    margin-top: 3vh;
+  }
+  .checklist .item {
+    display: flex; gap: 16px; align-items: flex-start;
+    padding: 12px 0; border-bottom: 1px solid var(--border);
+    font-size: 0.96rem; line-height: 1.4; color: var(--text);
+  }
+  .checklist .box {
+    flex-shrink: 0; width: 14px; height: 14px; margin-top: 4px;
+    border: 1px solid var(--border-strong); border-radius: 2px;
+  }
+  .checklist .item code {
+    font-family: var(--f-mono); color: var(--accent); font-size: 0.88em;
+  }
+
+  /* ─── Title slide ────────────────────────────────────────────── */
+  .title-slide {
+    padding: 0;
+    background:
+      radial-gradient(ellipse at top right, rgba(255, 106, 26, 0.08), transparent 50%),
+      var(--bg);
+  }
+  .title-slide::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 64px 64px;
+    pointer-events: none;
+  }
+  .title-slide .content {
+    height: 100%; max-width: none; padding: 12vh 7vw 10vh;
+    display: grid; grid-template-rows: auto 1fr auto;
+    position: relative;
+  }
+  .title-meta {
+    display: flex; justify-content: space-between;
+    font-family: var(--f-mono); font-size: 11px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .title-meta .left { color: var(--accent); }
+  .title-main { align-self: center; }
+  .title-main .label {
+    font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.3em;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .title-main .label::before {
+    content: ""; width: 40px; height: 1px; background: var(--accent);
+  }
+  .title-main h1 {
+    font-family: var(--f-display); font-weight: 400;
+    font-size: clamp(4rem, 13vw, 11rem); line-height: 0.88;
+    letter-spacing: -0.04em; color: var(--text);
+  }
+  .title-main h1 em { font-style: italic; color: var(--accent); }
+  .title-main .sub {
+    font-family: var(--f-display); font-style: italic;
+    font-size: clamp(1.3rem, 2.2vw, 2rem);
+    color: var(--text-dim); margin-top: 32px; max-width: 38ch;
+    line-height: 1.25;
+  }
+  .title-bottom {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    font-family: var(--f-mono); font-size: 11px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .title-bottom .right { text-align: right; color: var(--text-dim); }
+  .title-bottom kbd {
+    font-family: var(--f-mono); padding: 2px 8px;
+    border: 1px solid var(--border); border-radius: 3px; color: var(--text-dim);
+  }
+
+  /* ─── Closing slide ──────────────────────────────────────────── */
+  .closing { padding: 0; background: var(--bg); }
+  .closing .content {
+    height: 100%; max-width: none; padding: 6vh 7vw;
+    display: grid; grid-template-rows: auto 1fr auto;
+  }
+  .closing-statement { align-self: start; margin-top: 4vh; max-width: none; }
+  .closing-statement .stmt {
+    font-family: var(--f-display); font-weight: 400;
+    font-size: clamp(3rem, 7vw, 6rem); line-height: 0.95;
+    letter-spacing: -0.02em; max-width: 22ch;
+  }
+  .closing-statement .stmt em { font-style: italic; color: var(--accent); }
+  .closing-statement .stmt-sub {
+    margin-top: 24px; max-width: 60ch;
+    color: var(--text-dim); font-size: 1rem; line-height: 1.55;
+  }
+
+  /* ─── Print ──────────────────────────────────────────────────── */
+  @media print {
+    body, html { overflow: visible; height: auto; }
+    .deck, .slide { position: static; height: 100vh; opacity: 1 !important; pointer-events: auto; page-break-after: always; }
+    .slide:last-child { page-break-after: avoid; }
+    .chrome-top, .chrome-bot, .progress, .src-badge { display: none !important; }
+    * { animation: none !important; transition: none !important; }
+  }
+
+  @media (max-width: 720px) {
+    .grid-2, .grid-3, .grid-thirds, .pattern, .install-steps, .perms, .platforms, .report-flow, .checklist { grid-template-columns: 1fr !important; gap: 18px !important; }
+    .slide { padding: 8vh 5vw; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="src-badge doc" id="srcBadge">Verbatim from official docs</div>
+
+<div class="deck" id="deck">
+
+  <!-- ─── 01 · TITLE ─────────────────────────────────────────── -->
+  <section class="slide title-slide" data-no-chrome>
+    <div class="content">
+      <div class="title-meta reveal">
+        <div class="left">Prisma AIRS · Model Security</div>
+        <div>CI/CD Integration · Companion Deck</div>
+      </div>
+
+      <div class="title-main reveal">
+        <div class="label">Build pipeline integration</div>
+        <h1>Gate the<br><em>pipeline.</em></h1>
+        <div class="sub">No plugin. No magic. One CLI, one exit code, every major CI system.</div>
+      </div>
+
+      <div class="title-bottom reveal">
+        <div class="left">Press <kbd>&rarr;</kbd> to begin</div>
+        <div class="right">14 slides · ~20 min<br><span style="color: var(--ok);">●</span> verbatim from docs &nbsp;·&nbsp; <span style="color: var(--warn);">●</span> reference pattern</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 02 · THE HONEST FRAMING ────────────────────────────── -->
+  <section class="slide" data-src="doc">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">02</span> · The honest framing</div>
+      <h1 class="display reveal">There is no plugin.<br>There is a <em>CLI.</em></h1>
+
+      <div class="grid-2" style="margin-top: 5vh;">
+        <p class="lede reveal" style="margin: 0;">
+          The full 48-page Palo Alto AI Model Security documentation does not mention
+          GitHub Actions, Jenkins, GitLab CI, Azure DevOps, CircleCI, Argo, Tekton, or any other
+          turnkey CI/CD integration. There are no first-party pipeline plugins.
+        </p>
+        <p class="lede reveal" style="margin: 0; color: var(--text);">
+          What Palo Alto ships is a <strong style="color: var(--accent);">command-line binary</strong> that
+          returns a non-zero exit code on failure. In every modern CI system, that&apos;s enough.
+          The integration is 15 lines of YAML and three secrets &mdash;
+          documented identically for every platform.
+        </p>
+      </div>
+
+      <div class="callout reveal" style="margin-top: 6vh;">
+        &ldquo;Set expectations early: customers will ask for <span class="em">&lsquo;the GitHub Action&rsquo;</span>.
+        Answer that the CLI <span class="em">is</span> the action &mdash; and that you&apos;ll show them every
+        major pipeline in the next ten minutes.&rdquo;
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 03 · THE TOOLKIT ───────────────────────────────────── -->
+  <section class="slide" data-src="doc">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">03</span> · The toolkit</div>
+      <h2 class="headline reveal">One package.<br>Two <em>front doors.</em></h2>
+      <p class="lede reveal">
+        <code style="font-family: var(--f-mono); color: var(--accent);">pip install model-security-client</code>
+        installs both the CLI binary and the Python SDK from the same wheel.
+        For pipelines, the CLI is almost always the right choice.
+      </p>
+
+      <div class="grid-2 reveal" style="margin-top: 4vh;">
+        <div class="card">
+          <div class="card-num">CLI</div>
+          <h3><code style="color: var(--accent);">model-security</code></h3>
+          <div class="body">
+            <p style="margin-bottom: 12px;"><strong>Use for CI/CD.</strong> Single command, structured exit codes, three subcommands. No Python code needed in the pipeline definition.</p>
+            <p style="color: var(--text-dim); font-size: 0.86rem;">
+              Subcommands: <code>scan</code>, <code>get-scan</code>, <code>list-scans</code>.
+              All three accept the same three env vars for authentication.
+            </p>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-num">SDK</div>
+          <h3><code style="color: var(--accent);">model_security_client</code></h3>
+          <div class="body">
+            <p style="margin-bottom: 12px;"><strong>Use for app code.</strong> When the scan call lives inside a Python service, training script, or registry-promotion hook &mdash; not inside a YAML pipeline definition.</p>
+            <p style="color: var(--text-dim); font-size: 0.86rem;">
+              Entry point: <code>ModelSecurityAPIClient(base_url=...)</code>.
+              Reads the same three env vars implicitly.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 04 · THE UNIVERSAL PATTERN ─────────────────────────── -->
+  <section class="slide" data-src="doc">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">04</span> · The universal pattern</div>
+      <h2 class="headline reveal">Every pipeline integration<br>is the <em>same three steps.</em></h2>
+
+      <div class="pattern reveal">
+        <div class="step">
+          <div class="ord">01</div>
+          <h4>Install</h4>
+          <p>Authenticate to the private PyPI, then <code>pip install model-security-client</code>. One-time per build agent, cacheable.</p>
+        </div>
+        <div class="step">
+          <div class="ord">02</div>
+          <h4>Authenticate</h4>
+          <p>Inject the three credentials as environment variables from your CI&apos;s secret store. <code>MODEL_SECURITY_CLIENT_ID</code>, <code>_SECRET</code>, <code>TSG_ID</code>.</p>
+        </div>
+        <div class="step">
+          <div class="ord">03</div>
+          <h4>Scan &amp; gate</h4>
+          <p>Run <code>model-security scan</code>. Exit code drives the pipeline &mdash; zero on ALLOWED, non-zero on BLOCKED. Add <code>--block-on-errors</code> to fail-closed.</p>
+        </div>
+      </div>
+
+      <p class="lede reveal" style="margin-top: 4vh; font-size: 0.95rem;">
+        This pattern is identical in GitHub Actions, GitLab CI, Jenkins, Azure DevOps, CircleCI, Bitbucket Pipelines,
+        Argo Workflows, Tekton, or any other system that can run a shell command in a container. The platform-specific
+        syntax differs &mdash; the integration model does not.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 05 · INSTALL (4 STEPS VERBATIM) ────────────────────── -->
+  <section class="slide" data-src="doc">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">05</span> · Install</div>
+      <h2 class="headline reveal">The <em>four steps</em><br>from page 17.</h2>
+
+      <div class="install-steps reveal">
+        <div class="install-step" data-step="STEP 1">
+          <h4>Generate the pip index link</h4>
+<pre><span class="c"># save as get-pypi-url.sh</span>
+<span class="k">curl</span> -X POST $TOKEN_ENDPOINT \
+  -u "$CLIENT_ID:$CLIENT_SECRET" \
+  -d "grant_type=client_credentials&scope=tsg_id:$TSG_ID"
+<span class="c"># &rarr; access_token</span>
+<span class="k">curl</span> $API/mgmt/v1/pypi/authenticate \
+  -H "Authorization: Bearer $TOKEN"
+<span class="c"># &rarr; short-lived authenticated PyPI URL</span></pre>
+          <p>The doc inlines this exact script. Vendor it into your repo or build a reusable workflow around it.</p>
+        </div>
+
+        <div class="install-step" data-step="STEP 2">
+          <h4>Set the three env vars</h4>
+<pre><span class="k">export</span> MODEL_SECURITY_CLIENT_ID=&lt;your-client-id&gt;
+<span class="k">export</span> MODEL_SECURITY_CLIENT_SECRET=&lt;your-client-secret&gt;
+<span class="k">export</span> TSG_ID=&lt;your-tsg-id&gt;</pre>
+          <p>In CI, these come from the platform&apos;s secret store &mdash; never from a checked-in file. Both CLI and SDK read these implicitly.</p>
+        </div>
+
+        <div class="install-step" data-step="STEP 3">
+          <h4>Install with uv or pip</h4>
+<pre><span class="c"># Modern (uv)</span>
+<span class="k">uv add</span> model-security-client \
+  --index $(/path/to/get-pypi-url.sh)
+
+<span class="c"># Or pip</span>
+<span class="k">pip install</span> model-security-client \
+  --extra-index-url &lt;URL from script&gt;</pre>
+          <p>The doc explicitly supports both. Use <code>uv</code> on modern agents &mdash; faster cold-start.</p>
+        </div>
+
+        <div class="install-step" data-step="STEP 4">
+          <h4>(SDK only) Initialize the client</h4>
+<pre><span class="k">from</span> model_security_client.api \
+  <span class="k">import</span> ModelSecurityAPIClient
+
+client = ModelSecurityAPIClient(
+  base_url="https://api.sase.paloaltonetworks.com/aims"
+)
+<span class="c"># env vars handle auth automatically</span></pre>
+          <p>Step 4 is SDK-only. If you&apos;re using the CLI in CI, you can skip straight to scanning after Step 3.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 06 · IAM ───────────────────────────────────────────── -->
+  <section class="slide" data-src="doc">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">06</span> · Service account</div>
+      <h2 class="headline reveal">Three permissions.<br>One <em>service account.</em></h2>
+      <p class="lede reveal">From page 16: &ldquo;To use SDK, you need at least the following permissions.&rdquo;
+        Create one dedicated service account per pipeline; do not reuse human credentials.</p>
+
+      <div class="perms reveal">
+        <div class="perm">
+          <div class="name">ai_ms_pypi_auth</div>
+          <div class="desc">Authenticate to the private PyPI to install the SDK / CLI itself.</div>
+        </div>
+        <div class="perm">
+          <div class="name">ai_ms.scans</div>
+          <div class="desc">Create scans, retrieve results, list scan history.</div>
+        </div>
+        <div class="perm">
+          <div class="name">ai_ms.security_groups</div>
+          <div class="desc">Discover Security Group UUIDs by source type at runtime.</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top: 4vh; gap: 3vw;">
+        <ul class="minimal reveal" style="margin: 0;">
+          <li><span class="k">Tenant</span><span class="v">SCM &rarr; Identity &amp; Access &rarr; Access Management &rarr; select tenant</span></li>
+          <li><span class="k">Role</span><span class="v">Create custom role &rarr; assign the three permissions above</span></li>
+          <li><span class="k">Account</span><span class="v">Create service account &rarr; assign the custom role</span></li>
+          <li><span class="k">Capture</span><span class="v">Client ID, Client Secret (shown once), TSG ID</span></li>
+        </ul>
+        <p class="lede reveal" style="margin: 0; font-style: italic; color: var(--text); font-family: var(--f-display); font-size: clamp(1rem, 1.3vw, 1.3rem);">
+          &ldquo;The Client Secret is displayed exactly once at creation. Pipe it straight into your secret manager &mdash; never paste it into a chat, a ticket, or a config file.&rdquo;
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 07 · CLI REFERENCE ─────────────────────────────────── -->
+  <section class="slide" data-src="doc">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">07</span> · CLI reference</div>
+      <h2 class="headline reveal">The entire CLI<br>fits on <em>one slide.</em></h2>
+
+      <pre class="code tight reveal" style="margin-top: 3vh;"><span class="c"># Scan a HuggingFace model (the most common shape)</span>
+<span class="k">model-security scan</span> \
+  --security-group-uuid <span class="s">"12345678-1234-1234-1234-123456789012"</span> \
+  --model-uri <span class="s">"https://huggingface.co/microsoft/DialoGPT-medium"</span>
+
+<span class="c"># Pin to a specific commit / version</span>
+<span class="k">model-security scan</span> ... --model-version <span class="s">"7b40bb0f92c4..."</span>
+
+<span class="c"># Filter files (faster on large repos)</span>
+<span class="k">model-security scan</span> ... \
+  --allow-patterns <span class="s">"*.bin"</span> <span class="s">"*.json"</span> \
+  --ignore-patterns <span class="s">"*.md"</span> <span class="s">"*.txt"</span>
+
+<span class="c"># Scan a local directory (e.g. a build artifact before upload)</span>
+<span class="k">model-security scan</span> --security-group-uuid <span class="s">"..."</span> --model-path <span class="s">"path/to/local/model"</span>
+
+<span class="c"># Scan a local dir destined for S3 (carries metadata)</span>
+<span class="k">model-security scan</span> ... --model-path <span class="s">"..."</span> --model-uri <span class="s">"s3://bucket/dir"</span> \
+  --model-name <span class="s">"production-classifier"</span> --model-author <span class="s">"ml-team"</span> --model-version <span class="s">"v2.1"</span>
+
+<span class="c"># Tune for long scans + fail-closed on transient errors</span>
+<span class="k">model-security scan</span> ... \
+  --poll-interval-secs <span class="v">10</span> \
+  --poll-timeout-secs <span class="v">900</span> \
+  --block-on-errors
+
+<span class="c"># Retrieve a previous scan by UUID</span>
+<span class="k">model-security get-scan</span> <span class="s">"87654321-4321-4321-4321-210987654321"</span>
+
+<span class="c"># List + filter scans (reporting / dashboards)</span>
+<span class="k">model-security list-scans</span> \
+  --source-types <span class="s">"HUGGING_FACE"</span> <span class="s">"S3"</span> \
+  --eval-outcomes <span class="s">"ALLOWED"</span> <span class="s">"BLOCKED"</span> \
+  --start-time <span class="s">"2025-01-01T00:00:00"</span> \
+  --limit <span class="v">50</span></pre>
+    </div>
+  </section>
+
+  <!-- ─── 08 · GATE SEMANTICS ────────────────────────────────── -->
+  <section class="slide" data-src="doc">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">08</span> · Gate semantics</div>
+      <h2 class="headline reveal">Exit codes are<br>the <em>only contract.</em></h2>
+
+      <table class="semantics reveal">
+        <thead><tr><th>Outcome</th><th>CLI exit</th><th>Default behavior</th><th>With <code>--block-on-errors</code></th></tr></thead>
+        <tbody>
+          <tr><td>ALLOWED</td><td><span class="o">0</span></td><td>Job passes. Promotion proceeds.</td><td>Same.</td></tr>
+          <tr><td>BLOCKED</td><td><span class="x">&ne;0</span></td><td>Job fails. Promotion halts.</td><td>Same.</td></tr>
+          <tr><td>WARNING</td><td><span class="o">0</span></td><td>Job passes; review recommended.</td><td>Same. Use <code>get-scan</code> to inspect.</td></tr>
+          <tr><td>Scan error<br><span style="color: var(--text-faint); font-weight: 400; font-size: 0.85em;">(network, timeout, 5xx)</span></td><td>varies</td><td>May exit 0 in some flows &mdash; <strong style="color: var(--bad);">unsafe.</strong></td><td><span class="x">&ne;0</span> &mdash; fail-closed. <strong>Always use this in CI.</strong></td></tr>
+        </tbody>
+      </table>
+
+      <div class="grid-2" style="margin-top: 3vh; gap: 3vw;">
+        <div class="card reveal" style="padding: 18px 20px;">
+          <h3>Tunables for long scans</h3>
+          <div class="body" style="font-size: 0.88rem; line-height: 1.55;">
+            <p><code>poll-interval-secs</code> &mdash; how often the CLI polls. Default <span style="color: var(--accent);">5s</span>.</p>
+            <p><code>poll-timeout-secs</code> &mdash; max wait for completion. Default <span style="color: var(--accent);">600s</span>. Raise to 900+ for 10&nbsp;GB+ models.</p>
+            <p><code>scan-timeout-secs</code> <span style="color: var(--text-faint);">(SDK only)</span> &mdash; local-scan timeout. Default <span style="color: var(--accent);">600s</span>.</p>
+          </div>
+        </div>
+        <div class="card reveal" style="padding: 18px 20px;">
+          <h3>The fail-closed rule</h3>
+          <div class="body" style="font-size: 0.92rem; line-height: 1.55;">
+            <p>In a production gate, <strong style="color: var(--accent);">always pass <code>--block-on-errors</code></strong>.</p>
+            <p style="color: var(--text-dim); margin-top: 8px;">A transient network blip or an API 503 must not silently let an unscanned model through. The flag turns &ldquo;scan failed&rdquo; into &ldquo;build failed&rdquo; &mdash; which is the only safe default.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 09 · GITHUB ACTIONS ────────────────────────────────── -->
+  <section class="slide" data-src="ref">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">09</span> · GitHub Actions</div>
+      <h2 class="headline reveal">Reference workflow<br>&mdash; <em>copy-pasteable.</em></h2>
+
+      <div class="code-label reveal" style="margin-top: 2vh;"><span class="fp">&middot;</span>.github/workflows/model-scan.yml</div>
+<pre class="code tight reveal"><span class="k">name</span>: Model Security Scan
+<span class="k">on</span>:
+  <span class="k">workflow_dispatch</span>:
+    <span class="k">inputs</span>:
+      <span class="k">model_uri</span>:
+        <span class="k">description</span>: <span class="s">"Model URI to scan"</span>
+        <span class="k">required</span>: <span class="v">true</span>
+  <span class="k">pull_request</span>:
+    <span class="k">paths</span>: [<span class="s">"models/**"</span>]
+
+<span class="k">jobs</span>:
+  <span class="k">scan</span>:
+    <span class="k">runs-on</span>: ubuntu-latest
+    <span class="k">env</span>:
+      <span class="k">MODEL_SECURITY_CLIENT_ID</span>:     ${{ secrets.AIRS_CLIENT_ID }}
+      <span class="k">MODEL_SECURITY_CLIENT_SECRET</span>: ${{ secrets.AIRS_CLIENT_SECRET }}
+      <span class="k">TSG_ID</span>:                       ${{ secrets.AIRS_TSG_ID }}
+    <span class="k">steps</span>:
+      - <span class="k">uses</span>: actions/checkout@v4
+      - <span class="k">uses</span>: actions/setup-python@v5
+        <span class="k">with</span>: { <span class="k">python-version</span>: <span class="s">"3.12"</span> }
+      - <span class="k">name</span>: Install jq + AIRS Model Security CLI
+        <span class="k">run</span>: |
+          sudo apt-get install -y jq
+          PYPI_URL=$(./scripts/get-pypi-url.sh)
+          pip install model-security-client --extra-index-url <span class="s">"$PYPI_URL"</span>
+      - <span class="k">name</span>: Scan &mdash; fail build on BLOCKED or scan error
+        <span class="k">run</span>: |
+          model-security scan \
+            --security-group-uuid <span class="s">"${{ vars.AIRS_HF_GROUP_UUID }}"</span> \
+            --model-uri <span class="s">"${{ inputs.model_uri }}"</span> \
+            --poll-timeout-secs 900 \
+            --block-on-errors</pre>
+
+      <p class="lede reveal" style="margin-top: 2.4vh; font-size: 0.88rem;">
+        Secrets &rarr; <strong>repo Settings &rarr; Secrets and variables &rarr; Actions</strong>. Group UUID is a non-secret <code style="font-family: var(--f-mono); color: var(--accent);">vars.*</code> &mdash; it&apos;s not sensitive.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 10 · GITLAB CI ─────────────────────────────────────── -->
+  <section class="slide" data-src="ref">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">10</span> · GitLab CI</div>
+      <h2 class="headline reveal">Same pattern,<br><em>different YAML.</em></h2>
+
+      <div class="code-label reveal" style="margin-top: 2vh;"><span class="fp">&middot;</span>.gitlab-ci.yml</div>
+<pre class="code tight reveal"><span class="k">stages</span>: [security-scan]
+
+<span class="k">model-security-scan</span>:
+  <span class="k">stage</span>: security-scan
+  <span class="k">image</span>: python:3.12-slim
+  <span class="k">variables</span>:
+    <span class="k">MODEL_URI</span>: <span class="s">""</span>   <span class="c"># pass via pipeline trigger or schedule</span>
+  <span class="k">before_script</span>:
+    - apt-get update && apt-get install -y jq curl
+    - PYPI_URL=$(./scripts/get-pypi-url.sh)
+    - pip install model-security-client --extra-index-url <span class="s">"$PYPI_URL"</span>
+  <span class="k">script</span>:
+    - |
+      model-security scan \
+        --security-group-uuid <span class="s">"$AIRS_HF_GROUP_UUID"</span> \
+        --model-uri <span class="s">"$MODEL_URI"</span> \
+        --poll-timeout-secs 900 \
+        --block-on-errors
+  <span class="k">rules</span>:
+    - <span class="k">if</span>: $CI_PIPELINE_SOURCE == <span class="s">"merge_request_event"</span>
+      <span class="k">changes</span>: [<span class="s">"models/**/*"</span>]
+    - <span class="k">if</span>: $CI_PIPELINE_SOURCE == <span class="s">"web"</span>      <span class="c"># manual trigger</span>
+    - <span class="k">if</span>: $CI_PIPELINE_SOURCE == <span class="s">"schedule"</span> <span class="c"># nightly rescans</span></pre>
+
+      <p class="lede reveal" style="margin-top: 2.4vh; font-size: 0.88rem;">
+        Secrets &rarr; <strong>Settings &rarr; CI/CD &rarr; Variables</strong>. Set <code style="font-family: var(--f-mono); color: var(--accent);">MODEL_SECURITY_CLIENT_ID</code>, <code style="font-family: var(--f-mono); color: var(--accent);">_SECRET</code>, <code style="font-family: var(--f-mono); color: var(--accent);">TSG_ID</code>, and <code style="font-family: var(--f-mono); color: var(--accent);">AIRS_HF_GROUP_UUID</code>. Mark the secret variables <strong>Masked</strong> and <strong>Protected</strong>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 11 · JENKINS ───────────────────────────────────────── -->
+  <section class="slide" data-src="ref">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">11</span> · Jenkins</div>
+      <h2 class="headline reveal">Declarative pipeline,<br><em>credential-bound stage.</em></h2>
+
+      <div class="code-label reveal" style="margin-top: 2vh;"><span class="fp">&middot;</span>Jenkinsfile</div>
+<pre class="code tight reveal"><span class="k">pipeline</span> {
+  <span class="k">agent</span> { docker { image <span class="s">'python:3.12-slim'</span> } }
+
+  <span class="k">parameters</span> {
+    string(name: <span class="s">'MODEL_URI'</span>, defaultValue: <span class="s">''</span>, description: <span class="s">'Model URI to scan'</span>)
+  }
+
+  <span class="k">environment</span> {
+    MODEL_SECURITY_CLIENT_ID     = credentials(<span class="s">'airs-client-id'</span>)
+    MODEL_SECURITY_CLIENT_SECRET = credentials(<span class="s">'airs-client-secret'</span>)
+    TSG_ID                       = credentials(<span class="s">'airs-tsg-id'</span>)
+    AIRS_HF_GROUP_UUID           = credentials(<span class="s">'airs-hf-group-uuid'</span>)
+  }
+
+  <span class="k">stages</span> {
+    <span class="k">stage</span>(<span class="s">'Install AIRS Model Security CLI'</span>) {
+      <span class="k">steps</span> {
+        sh <span class="s">'apt-get update && apt-get install -y jq curl'</span>
+        sh <span class="s">'''
+          PYPI_URL=$(./scripts/get-pypi-url.sh)
+          pip install model-security-client --extra-index-url "$PYPI_URL"
+        '''</span>
+      }
+    }
+    <span class="k">stage</span>(<span class="s">'Scan model &mdash; gate the build'</span>) {
+      <span class="k">steps</span> {
+        sh <span class="s">"""
+          model-security scan \\
+            --security-group-uuid "${AIRS_HF_GROUP_UUID}" \\
+            --model-uri "${params.MODEL_URI}" \\
+            --poll-timeout-secs 900 \\
+            --block-on-errors
+        """</span>
+      }
+    }
+  }
+
+  <span class="k">post</span> {
+    <span class="k">failure</span> {
+      echo <span class="s">'Scan failed. Details at https://strata.paloaltonetworks.com &rarr; Insights &rarr; Prisma AIRS &rarr; Model Security &rarr; Scans'</span>
+    }
+  }
+}</pre>
+
+      <p class="lede reveal" style="margin-top: 2vh; font-size: 0.88rem;">
+        Credentials &rarr; <strong>Manage Jenkins &rarr; Credentials</strong>. Store each as <em>Secret Text</em>. The <code style="font-family: var(--f-mono); color: var(--accent);">credentials()</code> helper masks them in console output.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─── 12 · OTHER SYSTEMS ─────────────────────────────────── -->
+  <section class="slide" data-src="ref">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">12</span> · Other platforms</div>
+      <h2 class="headline reveal">Four more.<br>All <em>the same shape.</em></h2>
+
+      <div class="platforms reveal">
+        <div class="platform">
+          <div class="head">
+            <h4>Azure DevOps</h4>
+            <span class="file">azure-pipelines.yml</span>
+          </div>
+<pre><span class="k">- script</span>: |
+    PYPI_URL=$(./scripts/get-pypi-url.sh)
+    pip install model-security-client --extra-index-url <span class="s">"$PYPI_URL"</span>
+    model-security scan \
+      --security-group-uuid <span class="s">"$(AIRS_HF_GROUP_UUID)"</span> \
+      --model-uri <span class="s">"$(MODEL_URI)"</span> \
+      --poll-timeout-secs 900 --block-on-errors
+  <span class="k">env</span>:
+    MODEL_SECURITY_CLIENT_ID:     $(AIRS_CLIENT_ID)
+    MODEL_SECURITY_CLIENT_SECRET: $(AIRS_CLIENT_SECRET)
+    TSG_ID:                       $(AIRS_TSG_ID)
+<span class="c"># Secrets &rarr; Pipelines &rarr; Library &rarr; Variable Group (secret)</span></pre>
+        </div>
+
+        <div class="platform">
+          <div class="head">
+            <h4>CircleCI</h4>
+            <span class="file">.circleci/config.yml</span>
+          </div>
+<pre><span class="k">jobs</span>:
+  <span class="k">scan</span>:
+    <span class="k">docker</span>: [{ <span class="k">image</span>: cimg/python:3.12 }]
+    <span class="k">steps</span>:
+      - checkout
+      - <span class="k">run</span>: |
+          sudo apt-get install -y jq
+          PYPI_URL=$(./scripts/get-pypi-url.sh)
+          pip install model-security-client --extra-index-url <span class="s">"$PYPI_URL"</span>
+          model-security scan \
+            --security-group-uuid <span class="s">"$AIRS_HF_GROUP_UUID"</span> \
+            --model-uri <span class="s">"$MODEL_URI"</span> --block-on-errors
+<span class="c"># Secrets &rarr; Project Settings &rarr; Environment Variables</span></pre>
+        </div>
+
+        <div class="platform">
+          <div class="head">
+            <h4>Tekton</h4>
+            <span class="file">task.yaml</span>
+          </div>
+<pre><span class="k">apiVersion</span>: tekton.dev/v1
+<span class="k">kind</span>: Task
+<span class="k">spec</span>:
+  <span class="k">steps</span>:
+    - <span class="k">name</span>: scan
+      <span class="k">image</span>: python:3.12-slim
+      <span class="k">envFrom</span>: [{ <span class="k">secretRef</span>: { <span class="k">name</span>: airs-creds } }]
+      <span class="k">script</span>: |
+        pip install model-security-client \
+          --extra-index-url $(./get-pypi-url.sh)
+        model-security scan --security-group-uuid $UUID \
+          --model-uri $(params.model-uri) --block-on-errors
+<span class="c"># Secret: kubectl create secret generic airs-creds --from-literal=...</span></pre>
+        </div>
+
+        <div class="platform">
+          <div class="head">
+            <h4>Argo Workflows</h4>
+            <span class="file">workflow.yaml</span>
+          </div>
+<pre><span class="k">templates</span>:
+- <span class="k">name</span>: scan-model
+  <span class="k">container</span>:
+    <span class="k">image</span>: python:3.12-slim
+    <span class="k">command</span>: [sh, -c]
+    <span class="k">args</span>: [<span class="s">"pip install model-security-client \\
+      --extra-index-url $(./get-pypi-url.sh) && \\
+      model-security scan --security-group-uuid $UUID \\
+      --model-uri {{inputs.parameters.uri}} --block-on-errors"</span>]
+    <span class="k">envFrom</span>: [{ <span class="k">secretRef</span>: { <span class="k">name</span>: airs-creds } }]
+<span class="c"># Pattern identical for Bitbucket Pipelines, Drone, Woodpecker, etc.</span></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 13 · REPORTING & AUDIT ─────────────────────────────── -->
+  <section class="slide" data-src="doc">
+    <div class="content">
+      <div class="eyebrow reveal"><span class="num">13</span> · Reporting &amp; audit</div>
+      <h2 class="headline reveal">Every scan leaves<br><em>two paper trails.</em></h2>
+      <p class="lede reveal">The CLI surfaces only what the pipeline needs (a verdict, an exit code). The full evidence package lives in SCM &mdash; same scan UUID, deep-linkable from the build log.</p>
+
+      <div class="report-flow">
+        <div class="report-card reveal">
+          <h4>In the pipeline</h4>
+          <p>Capture <code>list-scans</code> output as a build artifact for compliance evidence:</p>
+<pre style="font-family: var(--f-mono); font-size: 0.75rem; background: var(--bg); border: 1px solid var(--border); padding: 12px; line-height: 1.55; color: var(--text);">model-security list-scans \
+  --start-time <span style="color: var(--accent);">"$(date -d '7 days ago' +%FT%T)"</span> \
+  --limit 200 &gt; scans-week.txt</pre>
+          <p style="color: var(--text-dim); font-size: 0.86rem; margin-top: 12px;">Pin the artifact to the build &mdash; auditors don&apos;t need SCM access to verify a model was scanned before promotion.</p>
+        </div>
+
+        <div class="report-card reveal">
+          <h4>In Strata Cloud Manager</h4>
+          <p>Every scan persists with its UUID. Deep-link from the build log:</p>
+          <p style="font-family: var(--f-mono); font-size: 0.78rem; color: var(--text-dim); padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); margin-top: 8px;">
+            strata.paloaltonetworks.com<br>
+            <span style="color: var(--accent);">&rarr;</span> Insights<br>
+            <span style="color: var(--accent);">&rarr;</span> Prisma AIRS<br>
+            <span style="color: var(--accent);">&rarr;</span> Model Security<br>
+            <span style="color: var(--accent);">&rarr;</span> Scans &middot; filter by UUID
+          </p>
+          <p style="color: var(--text-dim); font-size: 0.86rem; margin-top: 12px;">SCM shows per-rule findings, file-level evidence, threat-intel links, and remediation steps &mdash; data the CLI doesn&apos;t return.</p>
+        </div>
+      </div>
+
+      <div class="callout reveal" style="margin-top: 3vh;">
+        &ldquo;The pipeline answers <span class="em">&lsquo;ship or don&apos;t.&rsquo;</span> SCM answers <span class="em">&lsquo;why.&rsquo;</span> Together they give security and platform teams the same truth from two angles.&rdquo;
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── 14 · CHECKLIST (CLOSING) ───────────────────────────── -->
+  <section class="slide closing" data-no-chrome>
+    <div class="content">
+      <div style="display: flex; justify-content: space-between; align-items: center; font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-faint);" class="reveal">
+        <div style="color: var(--accent);">14 &nbsp;&middot;&nbsp; Pre-flight Checklist</div>
+        <div>Prisma AIRS · CI/CD</div>
+      </div>
+
+      <div class="closing-statement reveal">
+        <div class="stmt"><em>Gate it.</em></div>
+        <div class="stmt-sub">Twelve boxes between today and a production pipeline that won&apos;t ship an unscanned model.</div>
+
+        <div class="checklist">
+          <div class="item"><div class="box"></div><div>AIRS service account created with three IAM permissions (<code>ai_ms_pypi_auth</code>, <code>ai_ms.scans</code>, <code>ai_ms.security_groups</code>)</div></div>
+          <div class="item"><div class="box"></div><div>Client ID, Client Secret, TSG ID stored in CI secret manager &mdash; never in repo</div></div>
+          <div class="item"><div class="box"></div><div><code>get-pypi-url.sh</code> vendored into the repo (or wrapped as a reusable workflow)</div></div>
+          <div class="item"><div class="box"></div><div>Build agent has Python 3.10&ndash;3.12 + <code>curl</code> + <code>jq</code></div></div>
+          <div class="item"><div class="box"></div><div>Firewall egress allowed to <code>api.sase.paloaltonetworks.com</code> + <code>auth.apps.paloaltonetworks.com</code></div></div>
+          <div class="item"><div class="box"></div><div>Security Group UUIDs discovered (one per source type) and stored as non-secret CI variables</div></div>
+          <div class="item"><div class="box"></div><div>Pipeline calls <code>model-security scan</code> with <code>--block-on-errors</code> &mdash; fail-closed</div></div>
+          <div class="item"><div class="box"></div><div><code>--poll-timeout-secs</code> tuned for your largest expected model (default 600s)</div></div>
+          <div class="item"><div class="box"></div><div>Build log surfaces scan UUID + SCM deep-link on failure</div></div>
+          <div class="item"><div class="box"></div><div>Nightly <code>list-scans</code> job archives the prior 24h as a compliance artifact</div></div>
+          <div class="item"><div class="box"></div><div>Runbook drafted: who triages a BLOCKED verdict, and where in SCM</div></div>
+          <div class="item"><div class="box"></div><div>Trigger rules scoped to model changes &mdash; not every commit</div></div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; font-family: var(--f-mono); font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-faint); margin-top: 3vh;" class="reveal">
+        <div>End of deck</div>
+        <div>strata.paloaltonetworks.com</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ─── Chrome ─────────────────────────────────────────────── -->
+<div class="chrome-top">
+  <div class="mark">Prisma AIRS <span class="dot">·</span> CI/CD Integration</div>
+  <div>Companion Deck</div>
+</div>
+<div class="chrome-bot">
+  <div class="hint"><kbd>&larr;</kbd><kbd>&rarr;</kbd> navigate &middot; <kbd>F</kbd> fullscreen &middot; <kbd>P</kbd> print</div>
+  <div class="counter" id="counter">01 / 14</div>
+</div>
+
+<script>
+(() => {
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const counter = document.getElementById('counter');
+  const progress = document.getElementById('progress');
+  const chromeTop = document.querySelector('.chrome-top');
+  const chromeBot = document.querySelector('.chrome-bot');
+  const srcBadge = document.getElementById('srcBadge');
+  const total = slides.length;
+  let idx = 0;
+
+  const fromHash = parseInt(location.hash.replace('#', ''), 10);
+  if (!isNaN(fromHash) && fromHash >= 1 && fromHash <= total) idx = fromHash - 1;
+
+  const pad = (n) => String(n).padStart(2, '0');
+
+  function show(i) {
+    idx = Math.max(0, Math.min(total - 1, i));
+    slides.forEach((s, k) => s.classList.toggle('active', k === idx));
+    counter.textContent = `${pad(idx + 1)} / ${pad(total)}`;
+    progress.style.width = `${((idx + 1) / total) * 100}%`;
+
+    const noChrome = slides[idx].hasAttribute('data-no-chrome');
+    chromeTop.style.opacity = noChrome ? '0' : '1';
+    chromeBot.style.opacity = noChrome ? '0' : '1';
+
+    // Update source badge
+    const src = slides[idx].getAttribute('data-src');
+    if (src === 'doc') {
+      srcBadge.className = 'src-badge doc show';
+      srcBadge.textContent = 'Verbatim from official docs';
+    } else if (src === 'ref') {
+      srcBadge.className = 'src-badge ref show';
+      srcBadge.textContent = 'Reference pattern · not in official docs';
+    } else {
+      srcBadge.className = 'src-badge';
+    }
+
+    history.replaceState(null, '', '#' + (idx + 1));
+    slides[idx].querySelectorAll('.reveal').forEach((el) => {
+      el.style.animation = 'none';
+      void el.offsetWidth;
+      el.style.animation = '';
+    });
+  }
+
+  function next() { show(idx + 1); }
+  function prev() { show(idx - 1); }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'PageDown':
+      case ' ': e.preventDefault(); next(); break;
+      case 'ArrowLeft':
+      case 'PageUp': e.preventDefault(); prev(); break;
+      case 'Home': e.preventDefault(); show(0); break;
+      case 'End': e.preventDefault(); show(total - 1); break;
+      case 'f': case 'F':
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        else document.exitFullscreen();
+        break;
+      case 'p': case 'P':
+        window.print();
+        break;
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('a, button')) return;
+    if (window.getSelection().toString().length > 0) return;
+    const x = e.clientX / window.innerWidth;
+    if (x > 0.5) next(); else prev();
+  });
+
+  let touchX = 0;
+  document.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(dx) > 40) (dx < 0 ? next : prev)();
+  });
+
+  show(idx);
+})();
+</script>
+
+</body>
+</html>
