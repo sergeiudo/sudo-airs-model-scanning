@@ -98,8 +98,12 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
-      <div className="px-4 py-3 text-[10px] text-fg-faint border-t border-border">
-        localhost only · single tenant
+      <div className="px-3 py-3 border-t border-border space-y-2">
+        <div className="text-[10px] text-fg-faint px-1">localhost only · single tenant</div>
+        <div className="rounded-md border border-brand/40 bg-gradient-to-r from-brand/25 via-accent/20 to-purple-500/10 px-2.5 py-1.5 shadow-card">
+          <div className="text-[11px] font-semibold text-brand leading-tight">Sergei Udovenko</div>
+          <div className="text-[10px] text-fg-dim leading-tight mt-0.5">demo &amp; learning · unofficial</div>
+        </div>
       </div>
     </aside>
   )

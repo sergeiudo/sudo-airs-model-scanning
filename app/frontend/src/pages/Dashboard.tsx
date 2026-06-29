@@ -50,6 +50,15 @@ export function Dashboard() {
               Inspect any model from HuggingFace, S3, GCS, Azure, or local storage for malicious code,
               backdoors, unsafe formats, and license violations — then gate it in CI/CD.
             </p>
+            <div className="mt-4 rounded-lg border border-brand/40 bg-gradient-to-r from-brand/25 via-accent/20 to-purple-500/10 px-4 py-3 shadow-card">
+              <p className="text-sm leading-relaxed text-fg">
+                Built by <span className="font-semibold text-brand">Sergei Udovenko</span>, SE @ Palo Alto
+                Networks, for <span className="font-semibold">demo &amp; learning</span> purposes.
+              </p>
+              <p className="text-sm leading-relaxed text-fg-dim mt-0.5">
+                Not an official Palo Alto Networks product — just a guide to integrating Model Scanning.
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-2 mt-4">
               <LinkButton to="/scan" variant="brand" size="md">
                 <ScanLine className="w-4 h-4" /> Run a scan

@@ -5,6 +5,15 @@
 
 Demonstration repository for scanning machine learning models for security vulnerabilities using Prisma AIRS Model Security.
 
+> **About this project**
+> Built by **Sergei Udovenko**, Sales Engineer @ Palo Alto Networks, for **demo and
+> learning purposes** — to show how to integrate Prisma AIRS Model Scanning into real
+> workflows (SDK, CLI, CI/CD, multiple model sources).
+>
+> This is **not an official Palo Alto Networks product** and is not affiliated with,
+> supported, or endorsed by Palo Alto Networks. It only consumes the proprietary
+> `model-security-client` SDK. Use at your own discretion.
+
 ## Overview
 
 This repository provides three ways to learn and demo Prisma AIRS Model Security:
