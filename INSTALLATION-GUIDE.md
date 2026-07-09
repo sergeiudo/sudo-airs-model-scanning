@@ -2,10 +2,16 @@
 
 ## Prerequisites
 
-- **Python 3.10 - 3.12** (3.12 recommended; 3.13 has compatibility issues)
+- **Python 3.10 - 3.12** (3.12 recommended; 3.13+ is **not** supported by the pinned dependencies)
 - **pip** (included with Python)
 - **jq** (installed automatically by setup script, or `brew install jq` / `apt install jq`)
+- **Node.js 20+** (only if you plan to run the Demo Portal web UI)
 - **Prisma AIRS credentials** from Strata Cloud Manager
+- **Outbound network access** to `auth.apps.paloaltonetworks.com`, `api.sase.paloaltonetworks.com`, public PyPI, and npm
+
+> **Fastest path:** run `./setup-sdk.sh` after Step 1 and Step 4 below — it creates the
+> virtual environment (auto-selecting a supported Python 3.10–3.12), installs the base
+> dependencies, and installs the SDK. Steps 2 and 3 are only needed for manual setup.
 
 ## Step 1: Clone the Repository
 
@@ -16,8 +22,11 @@ cd sudo-airs-model-scanning
 
 ## Step 2: Create a Virtual Environment
 
+> Skip this (and Step 3) if you use the automated `./setup-sdk.sh` in Step 5 — it creates
+> the virtual environment for you.
+
 ```bash
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 ```
 
@@ -94,9 +103,12 @@ Check your version: `python3 --version`. The SDK requires Python 3.10-3.12. If y
 # macOS with pyenv
 pyenv install 3.12
 pyenv local 3.12
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 ```
+
+The `setup-sdk.sh` script auto-detects `python3.12`, `python3.11`, or `python3.10` (in that
+order) and will error out with install instructions if only Python 3.13+ is available.
 
 ### `jq` not found
 

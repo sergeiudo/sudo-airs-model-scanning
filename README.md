@@ -57,44 +57,85 @@ steps, and an interactive REPL. See [`app/README.md`](app/README.md) for develop
 
 ### Prerequisites
 
-- Python 3.10, 3.11, or 3.12 (3.12 recommended)
-- Prisma AIRS Model Security account
-- Service account credentials (Client ID, Client Secret, TSG ID)
+Install these before you start:
+
+| Requirement | Needed for | Install |
+|-------------|-----------|---------|
+| **Python 3.10–3.12** (3.12 recommended; 3.13+ is **not** supported) | Everything | `brew install python@3.12` / `sudo apt install python3.12 python3.12-venv` / `sudo dnf install python3.12` |
+| **git** and **curl** | Cloning + authentication | Preinstalled on most systems |
+| **jq** | SDK authentication script | Auto-installed by `setup-sdk.sh`, or `brew install jq` / `sudo apt install jq` |
+| **Node.js 20+** | Only if you run the Demo Portal web UI | https://nodejs.org (or `nvm install 20`) |
+| **Prisma AIRS credentials** | Installing + using the SDK | Service account: Client ID, Client Secret, TSG ID (see [Getting Your Credentials](#getting-your-credentials)) |
+| **Outbound network access** | Private SDK install + scanning | Allow `auth.apps.paloaltonetworks.com`, `api.sase.paloaltonetworks.com`, public PyPI, and npm |
 
 ### Installation
 
-**Automated Setup (Recommended)**
+Copy-paste these steps in order:
 
 ```bash
 # 1. Clone the repo
 git clone https://github.com/sergeiudo/sudo-airs-model-scanning.git
 cd sudo-airs-model-scanning
 
-# 2. Create and activate virtual environment
-python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# 3. Copy credentials template and fill in your values
+# 2. Add your credentials (get them from https://strata.paloaltonetworks.com)
 cp .env.template .env
-nano .env  # Get credentials from https://strata.paloaltonetworks.com
+nano .env   # fill in MODEL_SECURITY_CLIENT_ID, MODEL_SECURITY_CLIENT_SECRET, TSG_ID
 
-# 4. Run automated setup (authenticates + installs SDK)
+# 3. Run automated setup
+#    Creates the .venv (auto-selects Python 3.10-3.12), installs base
+#    dependencies, authenticates, and installs the proprietary SDK.
 ./setup-sdk.sh
 ```
 
-**Manual Installation**
+That's it. `setup-sdk.sh` handles the virtual environment, base dependencies, and the private SDK for you — you do **not** need to create `.venv` or run `pip install` manually.
 
-If you prefer manual setup:
+**Then choose how to use it:**
 
 ```bash
+# Option A — Demo Portal web UI (needs Node.js 20+; builds the frontend on first run)
+./app/run-app.sh                 # serves http://localhost:8765
+
+# Option B — Jupyter notebooks
+source .venv/bin/activate
+jupyter notebook                 # open notebooks/prisma-airs-interactive-model-security.ipynb
+
+# Option C — Example scripts
+source .venv/bin/activate
+python examples/scan_huggingface_model.py
+```
+
+<details>
+<summary><strong>Manual installation (advanced)</strong></summary>
+
+If you prefer to manage the environment yourself instead of running `setup-sdk.sh`:
+
+```bash
+# Create the virtual environment with a supported Python (3.10-3.12)
+python3.12 -m venv .venv
+source .venv/bin/activate        # On Windows: .venv\Scripts\activate
+
+# Install base dependencies
+pip install -r requirements.txt
+
 # Set credentials as environment variables
 export MODEL_SECURITY_CLIENT_ID="AIRS@your-tsg-id.iam.panserviceaccount.com"
 export MODEL_SECURITY_CLIENT_SECRET="your-client-secret-uuid"
 export TSG_ID="your-tsg-id"
 
-# Get PyPI URL and install
+# Get the private PyPI URL and install the SDK
 pip install model-security-client --extra-index-url $(./get-pypi-url.sh)
 ```
+
+</details>
+
+### Deploying at a customer site
+
+This repo is built to be cloned and run on a customer's own workstation or VM for demos/evaluation:
+
+- Use the **customer's own** service-account credentials in `.env` — never share yours. `.env` is git-ignored and is not part of the clone.
+- Ensure their firewall/proxy allows the endpoints listed in the prerequisites table.
+- The Demo Portal binds to `127.0.0.1` and holds live credentials — keep it on loopback; do not expose it on a public interface.
+- A fresh clone contains no `.venv`, `.env`, `node_modules`, or built frontend; `setup-sdk.sh` (and the first `./app/run-app.sh`) generate all of them on-site.
 
 ### Getting Your Credentials
 

@@ -42,10 +42,35 @@ fi
 echo "Credentials loaded successfully"
 echo ""
 
+# Pick a supported Python interpreter (3.10-3.12; 3.12 preferred, 3.13+ unsupported)
+find_python() {
+    for candidate in python3.12 python3.11 python3.10 python3; do
+        if command -v "$candidate" &> /dev/null; then
+            # Ensure the interpreter's minor version is within 3.10-3.12
+            if "$candidate" -c 'import sys; sys.exit(0 if (3, 10) <= sys.version_info[:2] <= (3, 12) else 1)' &> /dev/null; then
+                echo "$candidate"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
 # Create virtual environment if it doesn't exist
 if [ ! -d ".venv" ]; then
-    echo "Creating virtual environment (.venv)..."
-    python3.12 -m venv .venv
+    PYTHON_BIN="$(find_python)" || {
+        echo "Error: No supported Python found (need 3.10, 3.11, or 3.12; 3.12 recommended)."
+        echo ""
+        echo "Python 3.13+ is not yet supported by the pinned dependencies."
+        echo "Install Python 3.12 and re-run this script:"
+        echo "  macOS:         brew install python@3.12"
+        echo "  Ubuntu/Debian: sudo apt install python3.12 python3.12-venv"
+        echo "  RHEL/Fedora:   sudo dnf install python3.12"
+        echo ""
+        exit 1
+    }
+    echo "Creating virtual environment (.venv) using ${PYTHON_BIN}..."
+    "$PYTHON_BIN" -m venv .venv
     echo "Virtual environment created"
     echo ""
 fi

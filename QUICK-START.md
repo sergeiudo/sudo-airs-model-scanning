@@ -1,5 +1,9 @@
 # Quick Start - Once You Have Credentials
 
+> **Prerequisites:** Python 3.10–3.12 (3.12 recommended; 3.13+ not supported), `git`, `jq`,
+> and — only for the Demo Portal web UI — Node.js 20+. `setup-sdk.sh` creates the virtual
+> environment for you (auto-selecting a supported Python), so no manual `venv` step is needed.
+
 ## 3-Step Installation
 
 ### 1. Add Credentials
@@ -15,8 +19,12 @@ nano .env  # Fill in your credentials
 
 ### 3. Launch Jupyter
 ```bash
+source .venv/bin/activate
 jupyter notebook
 ```
+
+> Prefer the web UI? Run `./app/run-app.sh` instead (needs Node.js 20+) — it serves the
+> Demo Portal on http://localhost:8765.
 
 ---
 
